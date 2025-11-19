@@ -41,6 +41,7 @@ class GenDoApp extends StatelessWidget {
           surface: Colors.white,
         ),
         scaffoldBackgroundColor: const Color(0xFFF4F6F8),
+        // cardTheme fjernet for at undgå type-konflikt
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0.0,
@@ -60,6 +61,7 @@ class GenDoApp extends StatelessWidget {
           surface: const Color(0xFF1E1E2C),
         ),
         scaffoldBackgroundColor: const Color(0xFF121212),
+        // cardTheme fjernet for at undgå type-konflikt
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0.0,
@@ -92,6 +94,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 1;
   
+  // Metode til at skifte fane, som vi sender ned til child widgets
   void _switchTab(int index) {
     setState(() {
       _currentIndex = index;
@@ -104,6 +107,7 @@ class _MainScreenState extends State<MainScreen> {
     final isDark = vm.isDarkMode;
     final theme = Theme.of(context);
 
+    // Vi opretter skærmene i build metoden for at kunne sende _switchTab med
     final List<Widget> screens = [
       const PomodoroScreen(),
       const GenUiCenterScreen(),
@@ -115,7 +119,7 @@ class _MainScreenState extends State<MainScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset('assets/gendo.png', height: 28),
+            Image.asset('assets/gendo._logopng', height: 28),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,6 +272,84 @@ class _CategorySelectorState extends State<_CategorySelector> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// --- WIDGET: DATE SELECTOR HELPER ---
+class _DateSelector extends StatelessWidget {
+  final DateTime? selectedDate;
+  final Function(DateTime?) onDateChanged;
+
+  const _DateSelector({required this.selectedDate, required this.onDateChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dateFormatter = DateFormat('dd/MM/yyyy');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Deadline (Valgfri)", 
+          style: TextStyle(
+            fontSize: 12, 
+            fontWeight: FontWeight.bold, 
+            color: theme.colorScheme.onSurface.withOpacity(0.6)
+          )
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            InkWell(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: selectedDate ?? DateTime.now(),
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+                );
+                if (picked != null) {
+                  onDateChanged(picked);
+                }
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: isDark ? Colors.white24 : Colors.grey.shade400),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_today, size: 16, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      selectedDate == null ? "Vælg dato" : dateFormatter.format(selectedDate!),
+                      style: TextStyle(
+                        color: selectedDate == null 
+                            ? theme.colorScheme.onSurface.withOpacity(0.5) 
+                            : theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (selectedDate != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.clear, size: 20),
+                onPressed: () => onDateChanged(null),
+                tooltip: "Fjern dato",
+              )
+            ]
+          ],
+        ),
+      ],
     );
   }
 }
@@ -583,7 +665,7 @@ class _GenUiCenterScreenState extends State<GenUiCenterScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset('assets/gendo.png', height: 80),
+          Image.asset('assets/gendo_logo.png', height: 80),
           const SizedBox(height: 20),
           Text("Hvad vil du opnå?", style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
@@ -693,50 +775,61 @@ class TodoListScreen extends StatelessWidget {
     final titleController = TextEditingController();
     final descController = TextEditingController();
     String selectedCategory = 'Generelt';
+    DateTime? selectedDate;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Ny Opgave"),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: titleController, 
-                autofocus: true,
-                decoration: const InputDecoration(labelText: "Titel", hintText: "Hvad skal laves?"),
+      builder: (ctx) => StatefulBuilder( // BRUGES TIL AT OPDATERE UI I DIALOGEN (DATO)
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text("Ny Opgave"),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: titleController, 
+                    autofocus: true,
+                    decoration: const InputDecoration(labelText: "Titel", hintText: "Hvad skal laves?"),
+                  ),
+                  const SizedBox(height: 15),
+                  _CategorySelector(
+                    initialCategory: selectedCategory,
+                    onChanged: (val) => selectedCategory = val,
+                  ),
+                  const SizedBox(height: 15),
+                  // DATO VÆLGER I OPRET
+                  _DateSelector(
+                    selectedDate: selectedDate,
+                    onDateChanged: (date) => setState(() => selectedDate = date),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: descController,
+                    decoration: const InputDecoration(labelText: "Noter/Beskrivelse"),
+                    maxLines: 3,
+                  ),
+                ],
               ),
-              const SizedBox(height: 15),
-              // NY KATEGORI VÆLGER (CHIPS)
-              _CategorySelector(
-                initialCategory: selectedCategory,
-                onChanged: (val) => selectedCategory = val,
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                controller: descController,
-                decoration: const InputDecoration(labelText: "Noter/Beskrivelse"),
-                maxLines: 3,
-              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
+              ElevatedButton(onPressed: () {
+                if (titleController.text.isNotEmpty) {
+                  vm.addTask(
+                    titleController.text,
+                    category: selectedCategory,
+                    description: descController.text,
+                    dueDate: selectedDate, // Sender datoen med
+                  );
+                  Navigator.pop(context);
+                }
+              }, child: const Text("Tilføj")),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
-          ElevatedButton(onPressed: () {
-            if (titleController.text.isNotEmpty) {
-              vm.addTask(
-                titleController.text,
-                category: selectedCategory,
-                description: descController.text,
-              );
-              Navigator.pop(context);
-            }
-          }, child: const Text("Tilføj")),
-        ],
+          );
+        }
       ),
     );
   }
@@ -863,52 +956,63 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     final titleController = TextEditingController(text: currentTask.title);
     final descController = TextEditingController(text: currentTask.description);
     String selectedCategory = currentTask.category;
+    DateTime? selectedDate = currentTask.dueDate; // Start med nuværende deadline
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Rediger Opgave"),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(labelText: "Titel"),
+      builder: (ctx) => StatefulBuilder( // NØDVENDIG FOR AT OPDATERE DATO I EDIT
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text("Rediger Opgave"),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(labelText: "Titel"),
+                  ),
+                  const SizedBox(height: 15),
+                  _CategorySelector(
+                    initialCategory: selectedCategory,
+                    onChanged: (val) => selectedCategory = val,
+                  ),
+                  const SizedBox(height: 15),
+                  // DATO VÆLGER I EDIT
+                  _DateSelector(
+                    selectedDate: selectedDate,
+                    onDateChanged: (date) => setState(() => selectedDate = date),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: descController,
+                    decoration: const InputDecoration(labelText: "Noter/Beskrivelse"),
+                    maxLines: 3,
+                  ),
+                ],
               ),
-              const SizedBox(height: 15),
-              // NY KATEGORI VÆLGER (CHIPS)
-              _CategorySelector(
-                initialCategory: selectedCategory,
-                onChanged: (val) => selectedCategory = val,
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                controller: descController,
-                decoration: const InputDecoration(labelText: "Noter/Beskrivelse"),
-                maxLines: 3,
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
+              ElevatedButton(
+                onPressed: () {
+                  if (titleController.text.isNotEmpty) {
+                    final updatedTask = currentTask.copyWith(
+                      title: titleController.text,
+                      category: selectedCategory,
+                      description: descController.text,
+                      dueDate: selectedDate, // Gem ændret dato
+                    );
+                    vm.updateTaskDetails(updatedTask);
+                    Navigator.pop(ctx);
+                  }
+                },
+                child: const Text("Gem"),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
-          ElevatedButton(
-            onPressed: () {
-              if (titleController.text.isNotEmpty) {
-                final updatedTask = currentTask.copyWith(
-                  title: titleController.text,
-                  category: selectedCategory,
-                  description: descController.text,
-                );
-                vm.updateTaskDetails(updatedTask);
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text("Gem"),
-          ),
-        ],
+          );
+        }
       ),
     );
   }
