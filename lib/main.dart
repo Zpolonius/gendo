@@ -41,7 +41,6 @@ class GenDoApp extends StatelessWidget {
           surface: Colors.white,
         ),
         scaffoldBackgroundColor: const Color(0xFFF4F6F8),
-        // cardTheme fjernet for at undgå type-konflikt
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0.0,
@@ -61,7 +60,6 @@ class GenDoApp extends StatelessWidget {
           surface: const Color(0xFF1E1E2C),
         ),
         scaffoldBackgroundColor: const Color(0xFF121212),
-        // cardTheme fjernet for at undgå type-konflikt
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0.0,
@@ -94,7 +92,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 1;
   
-  // Metode til at skifte fane, som vi sender ned til child widgets
   void _switchTab(int index) {
     setState(() {
       _currentIndex = index;
@@ -107,7 +104,6 @@ class _MainScreenState extends State<MainScreen> {
     final isDark = vm.isDarkMode;
     final theme = Theme.of(context);
 
-    // Vi opretter skærmene i build metoden for at kunne sende _switchTab med
     final List<Widget> screens = [
       const PomodoroScreen(),
       const GenUiCenterScreen(),
@@ -150,6 +146,126 @@ class _MainScreenState extends State<MainScreen> {
           NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Fokus'),
           NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'GenDo'),
           NavigationDestination(icon: Icon(Icons.check_circle_outline), selectedIcon: Icon(Icons.check_circle), label: 'Opgaver'),
+        ],
+      ),
+    );
+  }
+}
+
+// --- WIDGET: KATEGORI SELECTOR (CHIPS) ---
+class _CategorySelector extends StatefulWidget {
+  final String initialCategory;
+  final Function(String) onChanged;
+
+  const _CategorySelector({required this.initialCategory, required this.onChanged});
+
+  @override
+  State<_CategorySelector> createState() => _CategorySelectorState();
+}
+
+class _CategorySelectorState extends State<_CategorySelector> {
+  late String _selectedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategory = widget.initialCategory;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<AppViewModel>();
+    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Sørg for at vi har den valgte kategori, selv hvis den er slettet (fallback)
+    if (!vm.categories.contains(_selectedCategory) && vm.categories.isNotEmpty) {
+       _selectedCategory = vm.categories.first;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Kategori", 
+          style: TextStyle(
+            fontSize: 12, 
+            fontWeight: FontWeight.bold, 
+            color: theme.colorScheme.onSurface.withOpacity(0.6)
+          )
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8.0,
+          runSpacing: 8.0,
+          children: [
+            ...vm.categories.map((category) {
+              final isSelected = category == _selectedCategory;
+              return ChoiceChip(
+                label: Text(category),
+                selected: isSelected,
+                onSelected: (bool selected) {
+                  if (selected) {
+                    setState(() => _selectedCategory = category);
+                    widget.onChanged(category);
+                  }
+                },
+                // Styling for et lækkert look
+                selectedColor: theme.colorScheme.primary,
+                backgroundColor: isDark ? Colors.white10 : Colors.grey[100],
+                labelStyle: TextStyle(
+                  color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: isSelected ? Colors.transparent : (isDark ? Colors.white24 : Colors.grey[300]!),
+                  ),
+                ),
+                showCheckmark: false, // Renere look uden flueben
+              );
+            }),
+            // "Tilføj Ny" knap
+            ActionChip(
+              label: const Icon(Icons.add, size: 18),
+              onPressed: () => _showAddCategoryDialog(context, vm),
+              backgroundColor: isDark ? Colors.white10 : Colors.white,
+              shape: CircleBorder(
+                side: BorderSide(color: isDark ? Colors.white24 : Colors.grey[300]!),
+              ),
+              padding: const EdgeInsets.all(8),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _showAddCategoryDialog(BuildContext context, AppViewModel vm) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Ny Kategori"),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: "Navn på kategori"),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.isNotEmpty) {
+                await vm.addNewCategory(controller.text);
+                setState(() => _selectedCategory = controller.text);
+                widget.onChanged(controller.text);
+                if (mounted) Navigator.pop(context);
+              }
+            },
+            child: const Text("Opret"),
+          ),
         ],
       ),
     );
@@ -447,7 +563,6 @@ class _TimeChip extends StatelessWidget {
   }
 }
 
-// --- GEN DO AI SCREEN ---
 class GenUiCenterScreen extends StatefulWidget {
   const GenUiCenterScreen({super.key});
   @override
@@ -515,7 +630,6 @@ class _GenUiCenterScreenState extends State<GenUiCenterScreen> {
   }
 }
 
-// --- OPGAVE LISTE SCREEN (Opdateret) ---
 class TodoListScreen extends StatelessWidget {
   final Function(int) onSwitchTab; 
   
@@ -563,7 +677,8 @@ class TodoListScreen extends StatelessWidget {
       context, 
       MaterialPageRoute(
         builder: (_) => TaskDetailScreen(
-          task: task, 
+          taskId: task.id, 
+          initialTask: task,
           onStartTask: () {
             vm.setSelectedTask(task.id);
             Navigator.pop(context);
@@ -575,22 +690,49 @@ class TodoListScreen extends StatelessWidget {
   }
 
   void _showAddDialog(BuildContext context, AppViewModel vm) {
-    final controller = TextEditingController();
+    final titleController = TextEditingController();
+    final descController = TextEditingController();
+    String selectedCategory = 'Generelt';
+
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text("Ny Opgave"),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: TextField(
-          controller: controller, 
-          autofocus: true,
-          decoration: const InputDecoration(hintText: "Hvad skal laves?"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: titleController, 
+                autofocus: true,
+                decoration: const InputDecoration(labelText: "Titel", hintText: "Hvad skal laves?"),
+              ),
+              const SizedBox(height: 15),
+              // NY KATEGORI VÆLGER (CHIPS)
+              _CategorySelector(
+                initialCategory: selectedCategory,
+                onChanged: (val) => selectedCategory = val,
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: descController,
+                decoration: const InputDecoration(labelText: "Noter/Beskrivelse"),
+                maxLines: 3,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
           ElevatedButton(onPressed: () {
-            if (controller.text.isNotEmpty) {
-              vm.addTask(controller.text);
+            if (titleController.text.isNotEmpty) {
+              vm.addTask(
+                titleController.text,
+                category: selectedCategory,
+                description: descController.text,
+              );
               Navigator.pop(context);
             }
           }, child: const Text("Tilføj")),
@@ -600,7 +742,6 @@ class TodoListScreen extends StatelessWidget {
   }
 }
 
-// --- CUSTOM TASK CARD ---
 class _TaskCard extends StatelessWidget {
   final TodoTask task;
   final VoidCallback onTap;
@@ -704,12 +845,73 @@ class _TaskCard extends StatelessWidget {
   }
 }
 
-// --- DETALJE SKÆRM ---
-class TaskDetailScreen extends StatelessWidget {
-  final TodoTask task;
+// --- OPDATERET TASK DETAIL SCREEN ---
+class TaskDetailScreen extends StatefulWidget {
+  final String taskId;
+  final TodoTask initialTask;
   final VoidCallback onStartTask;
 
-  const TaskDetailScreen({super.key, required this.task, required this.onStartTask});
+  const TaskDetailScreen({super.key, required this.taskId, required this.initialTask, required this.onStartTask});
+
+  @override
+  State<TaskDetailScreen> createState() => _TaskDetailScreenState();
+}
+
+class _TaskDetailScreenState extends State<TaskDetailScreen> {
+  
+  void _showEditDialog(BuildContext context, AppViewModel vm, TodoTask currentTask) {
+    final titleController = TextEditingController(text: currentTask.title);
+    final descController = TextEditingController(text: currentTask.description);
+    String selectedCategory = currentTask.category;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Rediger Opgave"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: "Titel"),
+              ),
+              const SizedBox(height: 15),
+              // NY KATEGORI VÆLGER (CHIPS)
+              _CategorySelector(
+                initialCategory: selectedCategory,
+                onChanged: (val) => selectedCategory = val,
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: descController,
+                decoration: const InputDecoration(labelText: "Noter/Beskrivelse"),
+                maxLines: 3,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
+          ElevatedButton(
+            onPressed: () {
+              if (titleController.text.isNotEmpty) {
+                final updatedTask = currentTask.copyWith(
+                  title: titleController.text,
+                  category: selectedCategory,
+                  description: descController.text,
+                );
+                vm.updateTaskDetails(updatedTask);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text("Gem"),
+          ),
+        ],
+      ),
+    );
+  }
 
   Color _getPriorityColor(TaskPriority p) {
     switch(p) {
@@ -724,13 +926,19 @@ class TaskDetailScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateFormatter = DateFormat('EEE, d MMM yyyy');
+    
+    final vm = context.watch<AppViewModel>();
+    final task = vm.tasks.firstWhere((t) => t.id == widget.taskId, orElse: () => widget.initialTask);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         actions: [
-          IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () {}), 
+          IconButton(
+            icon: const Icon(Icons.edit_outlined), 
+            onPressed: () => _showEditDialog(context, vm, task)
+          ), 
           const SizedBox(width: 8),
         ],
       ),
@@ -821,7 +1029,7 @@ class TaskDetailScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 60,
                 child: ElevatedButton.icon(
-                  onPressed: onStartTask,
+                  onPressed: widget.onStartTask,
                   icon: const Icon(Icons.play_arrow_rounded, size: 28),
                   label: const Text("GÅ I GANG", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                   style: ElevatedButton.styleFrom(

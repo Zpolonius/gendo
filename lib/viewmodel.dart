@@ -12,32 +12,31 @@ class AppViewModel extends ChangeNotifier {
   // --- STATE: THEME ---
   bool _isDarkMode = false;
 
-  // --- STATE: OPGAVER ---
+  // --- STATE: OPGAVER & KATEGORIER ---
   List<TodoTask> _tasks = [];
+  List<String> _categories = []; // Ny liste til kategorier
   bool _isLoading = false;
 
   // --- STATE: POMODORO ---
   static const int defaultWorkMinutes = 20;
   
-  // Vi gemmer den valgte arbejdstid separat, så vi kan vende tilbage til den efter en pause
   int _currentWorkDuration = defaultWorkMinutes * 60; 
-  
   int _pomodoroDurationTotal = defaultWorkMinutes * 60;
   int _pomodoroTimeLeft = defaultWorkMinutes * 60;
   Timer? _timer;
   
-  // Status tracking
   TimerStatus _timerStatus = TimerStatus.idle;
   int _sessionsCompleted = 0;
   String? _selectedTaskId; 
 
   AppViewModel(this._repository) {
-    loadTasks();
+    loadData(); // Ændret fra loadTasks til loadData
   }
 
   // Getters
   bool get isDarkMode => _isDarkMode;
   List<TodoTask> get tasks => _tasks;
+  List<String> get categories => _categories; // Getter for kategorier
   bool get isLoading => _isLoading;
   int get pomodoroTimeLeft => _pomodoroTimeLeft;
   int get pomodoroDurationTotal => _pomodoroDurationTotal;
@@ -61,31 +60,70 @@ class AppViewModel extends ChangeNotifier {
       ? 0 
       : 1.0 - (_pomodoroTimeLeft / _pomodoroDurationTotal);
 
-  // --- ACTIONS: THEME & TASKS ---
+  // --- ACTIONS: THEME & DATA ---
 
   void toggleTheme(bool isDark) {
     _isDarkMode = isDark;
     notifyListeners();
   }
 
-  Future<void> loadTasks() async {
+  Future<void> loadData() async {
     _isLoading = true;
     notifyListeners();
-    _tasks = await _repository.getTasks();
+    // Hent både opgaver og kategorier
+    final results = await Future.wait([
+      _repository.getTasks(),
+      _repository.getCategories(),
+    ]);
+    _tasks = results[0] as List<TodoTask>;
+    _categories = results[1] as List<String>;
+    
     _isLoading = false;
     notifyListeners();
   }
 
-  Future<void> addTask(String title, {String category = 'Generelt'}) async {
+  // Ny metode til at tilføje kategori
+  Future<void> addNewCategory(String category) async {
+    if (category.trim().isEmpty) return;
+    await _repository.addCategory(category);
+    if (!_categories.contains(category)) {
+      _categories.add(category);
+      notifyListeners();
+    }
+  }
+
+  Future<void> addTask(String title, {
+    String category = 'Generelt', 
+    String description = '', 
+    TaskPriority priority = TaskPriority.medium,
+    DateTime? dueDate
+  }) async {
+    // Sikr at kategorien findes (hvis den kommer fra AI eller andet)
+    if (!_categories.contains(category)) {
+      await addNewCategory(category);
+    }
+
     final newTask = TodoTask(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: title,
       category: category,
+      description: description,
+      priority: priority,
+      dueDate: dueDate,
       createdAt: DateTime.now(),
     );
     await _repository.addTask(newTask);
     _tasks.add(newTask);
     notifyListeners();
+  }
+
+  Future<void> updateTaskDetails(TodoTask task) async {
+    await _repository.updateTask(task);
+    final index = _tasks.indexWhere((t) => t.id == task.id);
+    if (index != -1) {
+      _tasks[index] = task;
+      notifyListeners();
+    }
   }
 
   Future<void> toggleTask(String id) async {
@@ -125,6 +163,7 @@ class AppViewModel extends ChangeNotifier {
   }
 
   // --- LOGIK: POMODORO & BREAKS ---
+  // (Uændret logik herfra...)
 
   void setSelectedTask(String? taskId) {
     _selectedTaskId = taskId;
@@ -133,24 +172,18 @@ class AppViewModel extends ChangeNotifier {
 
   void setDuration(int minutes) {
     if (isTimerRunning) stopTimer();
-    
-    // Opdaterer både den nuværende timer OG standarden for arbejde
     _currentWorkDuration = minutes * 60;
     _pomodoroDurationTotal = _currentWorkDuration;
     _pomodoroTimeLeft = _currentWorkDuration;
-    
     _timerStatus = TimerStatus.idle;
     notifyListeners();
   }
 
   void startTimer() {
     if (_timer != null) return;
-    
-    // Hvis vi starter fra idle, så sæt status til working (medmindre vi allerede er i gang med en pause)
     if (_timerStatus == TimerStatus.idle) {
       _timerStatus = TimerStatus.working;
     }
-    
     notifyListeners();
     
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -172,7 +205,6 @@ class AppViewModel extends ChangeNotifier {
 
   void resetTimer() {
     stopTimer();
-    // Reset til den senest valgte arbejdstid (ikke altid 20 min, men det brugeren har valgt)
     _pomodoroDurationTotal = _currentWorkDuration; 
     _pomodoroTimeLeft = _pomodoroDurationTotal;
     _timerStatus = TimerStatus.idle;
@@ -181,10 +213,8 @@ class AppViewModel extends ChangeNotifier {
 
   void _handleTimerComplete() {
     if (_timerStatus == TimerStatus.working) {
-      // Arbejde færdig -> Vis dialog
       _timerStatus = TimerStatus.finishedWork;
     } else if (_timerStatus == TimerStatus.onBreak) {
-      // Pause færdig -> Reset til arbejde (bruger _currentWorkDuration)
       resetTimer(); 
     }
   }
@@ -197,17 +227,12 @@ class AppViewModel extends ChangeNotifier {
       }
       _selectedTaskId = null;
     }
-
     _sessionsCompleted++;
-
-    // Bestem pause længde (10 min normalt, 30 min hver 3. gang)
     int breakMinutes = (_sessionsCompleted % 3 == 0) ? 30 : 10;
-    
     startBreak(breakMinutes);
   }
 
   void startBreak(int minutes) {
-    // Her ændrer vi kun _pomodoroDurationTotal midlertidigt, vi rører ikke _currentWorkDuration
     _pomodoroDurationTotal = minutes * 60;
     _pomodoroTimeLeft = _pomodoroDurationTotal;
     _timerStatus = TimerStatus.onBreak;
@@ -216,6 +241,6 @@ class AppViewModel extends ChangeNotifier {
   }
 
   void skipBreak() {
-    resetTimer(); // Hopper direkte ud af pausen og tilbage til den valgte arbejdstid
+    resetTimer();
   }
 }
