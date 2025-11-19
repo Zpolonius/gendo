@@ -86,6 +86,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 1;
+  
   final List<Widget> _screens = [
     const PomodoroScreen(),
     const GenUiCenterScreen(),
@@ -103,6 +104,7 @@ class _MainScreenState extends State<MainScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Tranen vises foran "GenDo" i toppen
             SvgPicture.asset('assets/gendo_logo.svg', height: 28),
             const SizedBox(width: 10),
             Column(
@@ -148,35 +150,38 @@ class PomodoroScreen extends StatefulWidget {
 }
 
 class _PomodoroScreenState extends State<PomodoroScreen> {
-  
-  // Vi bruger addPostFrameCallback til at vise dialogen, da vi ikke må gøre det midt i et build
+  late AppViewModel _vm;
+  bool _isDialogShowing = false;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkTimerStatus();
-    });
+    _vm = Provider.of<AppViewModel>(context, listen: false);
+    _vm.addListener(_onVmChanged);
   }
 
   @override
-  void didUpdateWidget(PomodoroScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkTimerStatus();
-    });
+  void dispose() {
+    _vm.removeListener(_onVmChanged);
+    super.dispose();
   }
 
-  void _checkTimerStatus() {
-    final vm = Provider.of<AppViewModel>(context, listen: false);
-    if (vm.timerStatus == TimerStatus.finishedWork) {
-      _showCompletionDialog(context, vm);
+  void _onVmChanged() {
+    if (_vm.timerStatus == TimerStatus.finishedWork && !_isDialogShowing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_isDialogShowing) {
+          _showCompletionDialog(context, _vm);
+        }
+      });
     }
   }
 
   void _showCompletionDialog(BuildContext context, AppViewModel vm) {
+    setState(() => _isDialogShowing = true);
+
     showDialog(
       context: context,
-      barrierDismissible: false, // Brugeren SKAL vælge
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text("Godt gået!"),
         content: Column(
@@ -194,20 +199,22 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              vm.completeWorkSession(false); // Ikke færdig / Nej
+              vm.completeWorkSession(false);
             },
             child: const Text("Nej, ikke endnu"),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              vm.completeWorkSession(true); // Færdig / Ja
+              vm.completeWorkSession(true);
             },
             child: const Text("Ja, færdig!"),
           ),
         ],
       ),
-    );
+    ).then((_) {
+      if (mounted) setState(() => _isDialogShowing = false);
+    });
   }
 
   void _showCustomTimeDialog(BuildContext context, AppViewModel vm) {
@@ -248,21 +255,18 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
     final theme = Theme.of(context);
     final isDark = vm.isDarkMode;
 
-    // Nye default tider: 10, 20, 30. Default selection er 20.
     final currentMinutes = vm.pomodoroDurationTotal ~/ 60;
     final isCustomSelected = ![10, 20, 30].contains(currentMinutes);
     
-    // Skift farve baseret på om det er pause eller arbejde
     final timerColor = vm.isOnBreak ? Colors.green[400] : theme.colorScheme.primary;
     final statusText = vm.isOnBreak 
-        ? (vm.pomodoroDurationTotal > 600 ? "LANG PAUSE" : "PAUSE") // Hvis > 10 min er det lang pause
+        ? (vm.pomodoroDurationTotal > 600 ? "LANG PAUSE" : "PAUSE")
         : "FOKUS";
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          // Kun vis tidsvalg hvis vi er IDLE (ikke i gang med timer og ikke i pause)
           if (!vm.isTimerRunning && !vm.isOnBreak) ...[
             Text("VÆLG VARIGHED", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
             const SizedBox(height: 15),
@@ -271,7 +275,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
               children: [
                 _TimeChip(label: "10", isSelected: currentMinutes == 10, onTap: () => vm.setDuration(10)),
                 const SizedBox(width: 12),
-                _TimeChip(label: "20", isSelected: currentMinutes == 20, onTap: () => vm.setDuration(20)), // Default
+                _TimeChip(label: "20", isSelected: currentMinutes == 20, onTap: () => vm.setDuration(20)),
                 const SizedBox(width: 12),
                 _TimeChip(label: "30", isSelected: currentMinutes == 30, onTap: () => vm.setDuration(30)),
                 const SizedBox(width: 12),
@@ -281,7 +285,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
             const SizedBox(height: 40),
           ],
 
-          // Pause UI header
           if (vm.isOnBreak) ...[
              Container(
                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -319,7 +322,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Vis opgavenavn hvis arbejde, ellers vis "Træk vejret"
                     if (!vm.isOnBreak && vm.selectedTaskObj != null)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -337,7 +339,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
           ),
           const SizedBox(height: 40),
 
-          // Opgavevælger (Skjul under pause)
           if (!vm.isTimerRunning && !vm.isOnBreak)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -363,11 +364,9 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
 
           const SizedBox(height: 30),
 
-          // Kontrolknapper
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Start/Stop Knap
               if (!vm.isOnBreak)
                 FloatingActionButton.large(
                   heroTag: 'timer_control',
@@ -377,7 +376,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                   child: Icon(vm.isTimerRunning ? Icons.pause : Icons.play_arrow_rounded, color: Colors.white, size: 40),
                 ),
               
-              // Knap til at lukke pausen
               if (vm.isOnBreak)
                 ElevatedButton.icon(
                   onPressed: vm.skipBreak,
@@ -390,7 +388,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                   ),
                 ),
 
-              // Reset knap (kun hvis ikke pause)
               if (!vm.isOnBreak) ...[
                 const SizedBox(width: 20),
                 FloatingActionButton(
@@ -437,10 +434,6 @@ class _TimeChip extends StatelessWidget {
   }
 }
 
-// --- SCREEN 2 & 3 er uændrede (GenUiCenterScreen & TodoListScreen) ---
-// For at spare plads inkluderer jeg dem ikke her, da de er identiske med forrige version. 
-// Men i en rigtig fil skal du selvfølgelig beholde klasserne GenUiCenterScreen og TodoListScreen 
-// fra den forrige version af main.dart.
 class GenUiCenterScreen extends StatefulWidget {
   const GenUiCenterScreen({super.key});
   @override
@@ -461,6 +454,7 @@ class _GenUiCenterScreenState extends State<GenUiCenterScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // HER HAR JEG INDSAT TRANEN I STEDET FOR DET GAMLE IKON
           SvgPicture.asset('assets/gendo_logo.svg', height: 80),
           const SizedBox(height: 20),
           Text("Hvad vil du opnå?", style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
