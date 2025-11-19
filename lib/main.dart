@@ -152,9 +152,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-// ... (Resten af koden er uændret: _CategorySelector, _DateSelector, PomodoroScreen, _TimeChip, GenUiCenterScreen, TodoListScreen, _TaskCard) ...
-// Jeg inkluderer de nødvendige widgets herunder for at filen er komplet og kører korrekt.
-
+// --- WIDGET: KATEGORI SELECTOR ---
 class _CategorySelector extends StatefulWidget {
   final String initialCategory;
   final Function(String) onChanged;
@@ -271,6 +269,90 @@ class _CategorySelectorState extends State<_CategorySelector> {
   }
 }
 
+// --- NY WIDGET: PRIORITET SELECTOR ---
+class _PrioritySelector extends StatefulWidget {
+  final TaskPriority initialPriority;
+  final Function(TaskPriority) onChanged;
+
+  const _PrioritySelector({required this.initialPriority, required this.onChanged});
+
+  @override
+  State<_PrioritySelector> createState() => _PrioritySelectorState();
+}
+
+class _PrioritySelectorState extends State<_PrioritySelector> {
+  late TaskPriority _selectedPriority;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPriority = widget.initialPriority;
+  }
+
+  Color _getColor(TaskPriority p) {
+    switch(p) {
+      case TaskPriority.high: return Colors.redAccent;
+      case TaskPriority.medium: return Colors.orangeAccent;
+      case TaskPriority.low: return Colors.greenAccent;
+    }
+  }
+  
+  String _getLabel(TaskPriority p) {
+     switch(p) {
+      case TaskPriority.high: return "Høj";
+      case TaskPriority.medium: return "Mellem";
+      case TaskPriority.low: return "Lav";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Prioritet", 
+          style: TextStyle(
+            fontSize: 12, 
+            fontWeight: FontWeight.bold, 
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)
+          )
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: TaskPriority.values.map((priority) {
+            final isSelected = _selectedPriority == priority;
+            final color = _getColor(priority);
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: ChoiceChip(
+                label: Text(_getLabel(priority)),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() => _selectedPriority = priority);
+                    widget.onChanged(priority);
+                  }
+                },
+                selectedColor: color.withOpacity(0.2),
+                labelStyle: TextStyle(
+                  color: isSelected ? color : Colors.grey,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
+                ),
+                side: BorderSide(color: isSelected ? color : Colors.grey.shade300),
+                backgroundColor: Colors.transparent,
+                showCheckmark: false,
+                avatar: isSelected ? Icon(Icons.check, size: 16, color: color) : null,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
 class _DateSelector extends StatelessWidget {
   final DateTime? selectedDate;
   final Function(DateTime?) onDateChanged;
@@ -348,6 +430,7 @@ class _DateSelector extends StatelessWidget {
   }
 }
 
+// --- POMODORO SCREEN ---
 class PomodoroScreen extends StatefulWidget {
   const PomodoroScreen({super.key});
   @override
@@ -769,10 +852,11 @@ class TodoListScreen extends StatelessWidget {
     final descController = TextEditingController();
     String selectedCategory = 'Generelt';
     DateTime? selectedDate;
+    TaskPriority selectedPriority = TaskPriority.medium;
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder( // BRUGES TIL AT OPDATERE UI I DIALOGEN (DATO)
+      builder: (ctx) => StatefulBuilder( 
         builder: (context, setState) {
           return AlertDialog(
             title: const Text("Ny Opgave"),
@@ -791,6 +875,11 @@ class TodoListScreen extends StatelessWidget {
                   _CategorySelector(
                     initialCategory: selectedCategory,
                     onChanged: (val) => selectedCategory = val,
+                  ),
+                  const SizedBox(height: 15),
+                  _PrioritySelector(
+                    initialPriority: selectedPriority,
+                    onChanged: (val) => setState(() => selectedPriority = val),
                   ),
                   const SizedBox(height: 15),
                   _DateSelector(
@@ -815,6 +904,7 @@ class TodoListScreen extends StatelessWidget {
                     category: selectedCategory,
                     description: descController.text,
                     dueDate: selectedDate, 
+                    priority: selectedPriority,
                   );
                   Navigator.pop(context);
                 }
@@ -948,11 +1038,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     final titleController = TextEditingController(text: currentTask.title);
     final descController = TextEditingController(text: currentTask.description);
     String selectedCategory = currentTask.category;
-    DateTime? selectedDate = currentTask.dueDate; // Start med nuværende deadline
+    DateTime? selectedDate = currentTask.dueDate; 
+    TaskPriority selectedPriority = currentTask.priority;
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder( // NØDVENDIG FOR AT OPDATERE DATO I EDIT
+      builder: (ctx) => StatefulBuilder( 
         builder: (context, setState) {
           return AlertDialog(
             title: const Text("Rediger Opgave"),
@@ -969,6 +1060,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   _CategorySelector(
                     initialCategory: selectedCategory,
                     onChanged: (val) => selectedCategory = val,
+                  ),
+                  const SizedBox(height: 15),
+                  _PrioritySelector(
+                    initialPriority: selectedPriority,
+                    onChanged: (val) => setState(() => selectedPriority = val),
                   ),
                   const SizedBox(height: 15),
                   _DateSelector(
@@ -993,7 +1089,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       title: titleController.text,
                       category: selectedCategory,
                       description: descController.text,
-                      dueDate: selectedDate, // Gem ændret dato
+                      dueDate: selectedDate,
+                      priority: selectedPriority,
                     );
                     vm.updateTaskDetails(updatedTask);
                     Navigator.pop(ctx);
@@ -1028,7 +1125,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        // Ændret fra 'close' til 'arrow_back' for at give bedre navigationsfølelse
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         actions: [
           IconButton(
@@ -1036,7 +1132,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             onPressed: () => _showEditDialog(context, vm, task)
           ), 
           const SizedBox(width: 8),
-          // TILFØJET GEM KNAP
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: TextButton(
