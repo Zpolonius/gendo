@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart'; // Til datoformatering
 import 'models.dart';
 import 'repository.dart';
 import 'viewmodel.dart';
@@ -30,6 +30,8 @@ class GenDoApp extends StatelessWidget {
     return MaterialApp(
       title: 'GenDo',
       debugShowCheckedModeBanner: false,
+      
+      // --- LIGHT THEME ---
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
@@ -39,13 +41,16 @@ class GenDoApp extends StatelessWidget {
           surface: Colors.white,
         ),
         scaffoldBackgroundColor: const Color(0xFFF4F6F8),
+        // cardTheme fjernet for at undgå type-konflikt
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
-          elevation: 0,
+          elevation: 0.0,
           centerTitle: true,
           iconTheme: IconThemeData(color: Colors.black87),
         ),
       ),
+
+      // --- DARK THEME ---
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
@@ -56,9 +61,10 @@ class GenDoApp extends StatelessWidget {
           surface: const Color(0xFF1E1E2C),
         ),
         scaffoldBackgroundColor: const Color(0xFF121212),
+        // cardTheme fjernet for at undgå type-konflikt
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
-          elevation: 0,
+          elevation: 0.0,
           centerTitle: true,
           iconTheme: IconThemeData(color: Colors.white),
         ),
@@ -72,6 +78,7 @@ class GenDoApp extends StatelessWidget {
           hintStyle: TextStyle(color: Colors.grey[500]),
         ),
       ),
+      
       themeMode: vm.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: const MainScreen(),
     );
@@ -87,11 +94,12 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 1;
   
-  final List<Widget> _screens = [
-    const PomodoroScreen(),
-    const GenUiCenterScreen(),
-    const TodoListScreen(),
-  ];
+  // Metode til at skifte fane, som vi sender ned til child widgets
+  void _switchTab(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,13 +107,19 @@ class _MainScreenState extends State<MainScreen> {
     final isDark = vm.isDarkMode;
     final theme = Theme.of(context);
 
+    // Vi opretter skærmene i build metoden for at kunne sende _switchTab med
+    final List<Widget> screens = [
+      const PomodoroScreen(),
+      const GenUiCenterScreen(),
+      TodoListScreen(onSwitchTab: _switchTab),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Tranen vises foran "GenDo" i toppen
-            SvgPicture.asset('assets/gendo_logo.svg', height: 28),
+            Image.asset('assets/gendo.png', height: 28),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,13 +139,13 @@ class _MainScreenState extends State<MainScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: SafeArea(child: IndexedStack(index: _currentIndex, children: _screens)),
+      body: SafeArea(child: IndexedStack(index: _currentIndex, children: screens)),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+        onDestinationSelected: _switchTab,
         backgroundColor: theme.colorScheme.surface,
         indicatorColor: theme.colorScheme.primary.withOpacity(0.2),
-        elevation: 0,
+        elevation: 0.0,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Fokus'),
           NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'GenDo'),
@@ -142,9 +156,9 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
+// --- POMODORO SCREEN ---
 class PomodoroScreen extends StatefulWidget {
   const PomodoroScreen({super.key});
-
   @override
   State<PomodoroScreen> createState() => _PomodoroScreenState();
 }
@@ -178,7 +192,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
 
   void _showCompletionDialog(BuildContext context, AppViewModel vm) {
     setState(() => _isDialogShowing = true);
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -434,6 +447,7 @@ class _TimeChip extends StatelessWidget {
   }
 }
 
+// --- GEN DO AI SCREEN ---
 class GenUiCenterScreen extends StatefulWidget {
   const GenUiCenterScreen({super.key});
   @override
@@ -454,8 +468,7 @@ class _GenUiCenterScreenState extends State<GenUiCenterScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // HER HAR JEG INDSAT TRANEN I STEDET FOR DET GAMLE IKON
-          SvgPicture.asset('assets/gendo_logo.svg', height: 80),
+          Image.asset('assets/gendo.png', height: 80),
           const SizedBox(height: 20),
           Text("Hvad vil du opnå?", style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
@@ -502,14 +515,16 @@ class _GenUiCenterScreenState extends State<GenUiCenterScreen> {
   }
 }
 
+// --- OPGAVE LISTE SCREEN (Opdateret) ---
 class TodoListScreen extends StatelessWidget {
-  const TodoListScreen({super.key});
+  final Function(int) onSwitchTab; 
+  
+  const TodoListScreen({super.key, required this.onSwitchTab});
 
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<AppViewModel>();
     final theme = Theme.of(context);
-    final isDark = vm.isDarkMode;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton(
@@ -532,38 +547,30 @@ class TodoListScreen extends StatelessWidget {
             itemCount: vm.tasks.length,
             itemBuilder: (ctx, i) {
               final task = vm.tasks[i];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isDark ? Colors.white10 : Colors.transparent),
-                  boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  leading: IconButton(
-                    icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined),
-                    color: task.isCompleted ? Colors.green : Colors.grey,
-                    onPressed: () => vm.toggleTask(task.id),
-                  ),
-                  title: Text(
-                    task.title, 
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: task.isCompleted ? Colors.grey : theme.colorScheme.onSurface,
-                      decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                    )
-                  ),
-                  subtitle: Text(task.category, style: TextStyle(fontSize: 12, color: theme.colorScheme.primary.withOpacity(0.7))),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
-                    onPressed: () => vm.deleteTask(task.id),
-                  ),
-                ),
+              return _TaskCard(
+                task: task, 
+                onTap: () => _openTaskDetail(context, task, vm),
+                onToggle: () => vm.toggleTask(task.id),
+                onDelete: () => vm.deleteTask(task.id),
               );
             },
           ),
+    );
+  }
+
+  void _openTaskDetail(BuildContext context, TodoTask task, AppViewModel vm) {
+    Navigator.push(
+      context, 
+      MaterialPageRoute(
+        builder: (_) => TaskDetailScreen(
+          task: task, 
+          onStartTask: () {
+            vm.setSelectedTask(task.id);
+            Navigator.pop(context);
+            onSwitchTab(0); 
+          },
+        )
+      )
     );
   }
 
@@ -588,6 +595,247 @@ class TodoListScreen extends StatelessWidget {
             }
           }, child: const Text("Tilføj")),
         ],
+      ),
+    );
+  }
+}
+
+// --- CUSTOM TASK CARD ---
+class _TaskCard extends StatelessWidget {
+  final TodoTask task;
+  final VoidCallback onTap;
+  final VoidCallback onToggle;
+  final VoidCallback onDelete;
+
+  const _TaskCard({
+    required this.task, 
+    required this.onTap, 
+    required this.onToggle, 
+    required this.onDelete
+  });
+
+  Color _getPriorityColor(TaskPriority p) {
+    switch(p) {
+      case TaskPriority.high: return Colors.redAccent;
+      case TaskPriority.medium: return Colors.orangeAccent;
+      case TaskPriority.low: return Colors.greenAccent;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dateFormatter = DateFormat('dd/MM');
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Hero(
+        tag: 'task_${task.id}',
+        child: Material(
+          type: MaterialType.transparency,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isDark ? Colors.white10 : Colors.transparent),
+              boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              leading: IconButton(
+                icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined),
+                color: task.isCompleted ? Colors.green : Colors.grey,
+                onPressed: onToggle,
+              ),
+              title: Text(
+                task.title, 
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: task.isCompleted ? Colors.grey : theme.colorScheme.onSurface,
+                  decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                )
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _getPriorityColor(task.priority).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          task.priority.name.toUpperCase(),
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _getPriorityColor(task.priority)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(task.category, style: TextStyle(fontSize: 12, color: theme.colorScheme.primary.withOpacity(0.7))),
+                      if (task.dueDate != null) ...[
+                        const Spacer(),
+                        Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
+                        const SizedBox(width: 4),
+                        Text(
+                          dateFormatter.format(task.dueDate!),
+                          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                        ),
+                      ]
+                    ],
+                  ),
+                ],
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                onPressed: onDelete,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- DETALJE SKÆRM ---
+class TaskDetailScreen extends StatelessWidget {
+  final TodoTask task;
+  final VoidCallback onStartTask;
+
+  const TaskDetailScreen({super.key, required this.task, required this.onStartTask});
+
+  Color _getPriorityColor(TaskPriority p) {
+    switch(p) {
+      case TaskPriority.high: return Colors.redAccent;
+      case TaskPriority.medium: return Colors.orangeAccent;
+      case TaskPriority.low: return Colors.greenAccent;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dateFormatter = DateFormat('EEE, d MMM yyyy');
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        leading: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+        actions: [
+          IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () {}), 
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Hero(
+                    tag: 'task_${task.id}',
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Text(
+                        task.title,
+                        style: GoogleFonts.poppins(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  Row(
+                    children: [
+                      Chip(
+                        label: Text(task.category),
+                        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                        labelStyle: TextStyle(color: theme.colorScheme.primary),
+                        side: BorderSide.none,
+                      ),
+                      const SizedBox(width: 10),
+                      Chip(
+                        avatar: Icon(Icons.flag, size: 16, color: _getPriorityColor(task.priority)),
+                        label: Text(task.priority.name.toUpperCase()),
+                        backgroundColor: _getPriorityColor(task.priority).withOpacity(0.1),
+                        labelStyle: TextStyle(color: _getPriorityColor(task.priority), fontWeight: FontWeight.bold),
+                        side: BorderSide.none,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+
+                  if (task.dueDate != null) ...[
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_month_outlined, color: Colors.grey[500]),
+                        const SizedBox(width: 10),
+                        Text(
+                          "Deadline: ${dateFormatter.format(task.dueDate!)}",
+                          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+                  ],
+
+                  Text("NOTATER", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200),
+                    ),
+                    child: Text(
+                      task.description.isEmpty ? "Ingen noter tilføjet." : task.description,
+                      style: TextStyle(fontSize: 16, height: 1.5, color: theme.colorScheme.onSurface.withOpacity(0.8)),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 100),
+                ],
+              ),
+            ),
+
+            Positioned(
+              left: 24,
+              right: 24,
+              bottom: 24,
+              child: SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  onPressed: onStartTask,
+                  icon: const Icon(Icons.play_arrow_rounded, size: 28),
+                  label: const Text("GÅ I GANG", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 5,
+                    shadowColor: theme.colorScheme.primary.withOpacity(0.4),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
