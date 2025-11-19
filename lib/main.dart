@@ -119,7 +119,7 @@ class _MainScreenState extends State<MainScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset('assets/gendo._logopng', height: 28),
+            Image.asset('assets/gendo_logo.png', height: 28),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
