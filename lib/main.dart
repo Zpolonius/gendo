@@ -70,6 +70,15 @@ class GenDoApp extends StatelessWidget {
           centerTitle: true,
           iconTheme: IconThemeData(color: Colors.white),
         ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF2A2A3D),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          hintStyle: TextStyle(color: Colors.grey[500]),
+        ),
       ),
       
       themeMode: vm.isDarkMode ? ThemeMode.dark : ThemeMode.light,
@@ -167,11 +176,52 @@ class PomodoroScreen extends StatelessWidget {
     return '${minutes.toString().padLeft(2, '0')}:${remSeconds.toString().padLeft(2, '0')}';
   }
 
+  // Hjælpefunktion til at vise dialogen for brugerdefineret tid
+  void _showCustomTimeDialog(BuildContext context, AppViewModel vm) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Sæt tid (minutter)"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: "F.eks. 60",
+            suffixText: "min",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Annuller"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final int? minutes = int.tryParse(controller.text);
+              if (minutes != null && minutes > 0) {
+                vm.setDuration(minutes);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text("Sæt"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<AppViewModel>();
     final theme = Theme.of(context);
     final isDark = vm.isDarkMode;
+
+    // Check om den nuværende tid er en af standarderne, for at vide om "Custom" skal være valgt
+    final currentMinutes = vm.pomodoroDurationTotal ~/ 60;
+    final isCustomSelected = ![15, 25, 45].contains(currentMinutes);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -180,15 +230,24 @@ class PomodoroScreen extends StatelessWidget {
           if (!vm.isTimerRunning) ...[
             Text("SESSION LENGTH", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
             const SizedBox(height: 15),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _TimeChip(minutes: 15, isSelected: vm.pomodoroDurationTotal == 15 * 60, onTap: () => vm.setDuration(15)),
-                const SizedBox(width: 12),
-                _TimeChip(minutes: 25, isSelected: vm.pomodoroDurationTotal == 25 * 60, onTap: () => vm.setDuration(25)),
-                const SizedBox(width: 12),
-                _TimeChip(minutes: 45, isSelected: vm.pomodoroDurationTotal == 45 * 60, onTap: () => vm.setDuration(45)),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _TimeChip(label: "15", isSelected: currentMinutes == 15, onTap: () => vm.setDuration(15)),
+                  const SizedBox(width: 12),
+                  _TimeChip(label: "25", isSelected: currentMinutes == 25, onTap: () => vm.setDuration(25)),
+                  const SizedBox(width: 12),
+                  _TimeChip(label: "45", isSelected: currentMinutes == 45, onTap: () => vm.setDuration(45)),
+                  const SizedBox(width: 12),
+                  _TimeChip(
+                    label: "Custom", 
+                    isSelected: isCustomSelected, 
+                    onTap: () => _showCustomTimeDialog(context, vm),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 40),
           ],
@@ -298,10 +357,11 @@ class PomodoroScreen extends StatelessWidget {
 }
 
 class _TimeChip extends StatelessWidget {
-  final int minutes;
+  final String label; // Ændret fra int til String for at støtte "Custom" tekst
   final bool isSelected;
   final VoidCallback onTap;
-  const _TimeChip({required this.minutes, required this.isSelected, required this.onTap});
+  
+  const _TimeChip({required this.label, required this.isSelected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -321,7 +381,13 @@ class _TimeChip extends StatelessWidget {
           ),
           boxShadow: isSelected ? [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))] : [],
         ),
-        child: Text("$minutes", style: TextStyle(color: isSelected ? Colors.white : theme.colorScheme.onSurface, fontWeight: FontWeight.bold)),
+        child: Text(
+          label, 
+          style: TextStyle(
+            color: isSelected ? Colors.white : theme.colorScheme.onSurface, 
+            fontWeight: FontWeight.bold
+          )
+        ),
       ),
     );
   }
