@@ -1,122 +1,488 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'models.dart';
+import 'repository.dart';
+import 'viewmodel.dart';
 
 void main() {
-  runApp(const MyApp());
+  final taskRepository = MockTaskRepository();
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AppViewModel(taskRepository)),
+      ],
+      child: const GenDoApp(),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class GenDoApp extends StatelessWidget {
+  const GenDoApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<AppViewModel>();
+    const primaryColor = Color(0xFF6C63FF);
+    
+    // Definer tekst-tema (Google Fonts)
+    final textTheme = GoogleFonts.poppinsTextTheme();
+
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'GenDo',
+      debugShowCheckedModeBanner: false,
+      
+      // Light Theme
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+        brightness: Brightness.light,
+        textTheme: textTheme,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: primaryColor,
+          // background parameter fjernet da den er deprecated
+          surface: Colors.white,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF4F6F8),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: true,
+          iconTheme: IconThemeData(color: Colors.black87),
+        ),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+
+      // Dark Theme
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        textTheme: textTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: primaryColor,
+          brightness: Brightness.dark,
+          // background parameter fjernet da den er deprecated
+          surface: const Color(0xFF1E1E2C),
+        ),
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: true,
+          iconTheme: IconThemeData(color: Colors.white),
+        ),
+      ),
+      
+      themeMode: vm.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      home: const MainScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _MainScreenState extends State<MainScreen> {
+  int _currentIndex = 1;
+  final List<Widget> _screens = [
+    const PomodoroScreen(),
+    const GenUiCenterScreen(),
+    const TodoListScreen(),
+  ];
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<AppViewModel>();
+    final isDark = vm.isDarkMode;
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SvgPicture.asset(
+              'assets/gendo_logo.svg', 
+              height: 28,
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "GenDo", 
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600, 
+                    fontSize: 20,
+                    color: isDark ? Colors.white : Colors.black87
+                  )
+                ),
+                Text(
+                  "AI Powered To Do", 
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w400, 
+                    fontSize: 10,
+                    color: theme.colorScheme.primary
+                  )
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
+            onPressed: () => vm.toggleTheme(!isDark),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: SafeArea(child: IndexedStack(index: _currentIndex, children: _screens)),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+        backgroundColor: theme.colorScheme.surface,
+        indicatorColor: theme.colorScheme.primary.withOpacity(0.2),
+        elevation: 0,
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Fokus'),
+          NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'GenDo'),
+          NavigationDestination(icon: Icon(Icons.check_circle_outline), selectedIcon: Icon(Icons.check_circle), label: 'Opgaver'),
+        ],
+      ),
+    );
+  }
+}
+
+// --- SCREEN 1: POMODORO ---
+class PomodoroScreen extends StatelessWidget {
+  const PomodoroScreen({super.key});
+
+  String _formatTime(int seconds) {
+    final minutes = (seconds / 60).floor();
+    final remSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remSeconds.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+    final vm = context.watch<AppViewModel>();
+    final theme = Theme.of(context);
+    final isDark = vm.isDarkMode;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          if (!vm.isTimerRunning) ...[
+            Text("SESSION LENGTH", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
+            const SizedBox(height: 15),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _TimeChip(minutes: 15, isSelected: vm.pomodoroDurationTotal == 15 * 60, onTap: () => vm.setDuration(15)),
+                const SizedBox(width: 12),
+                _TimeChip(minutes: 25, isSelected: vm.pomodoroDurationTotal == 25 * 60, onTap: () => vm.setDuration(25)),
+                const SizedBox(width: 12),
+                _TimeChip(minutes: 45, isSelected: vm.pomodoroDurationTotal == 45 * 60, onTap: () => vm.setDuration(45)),
+              ],
             ),
+            const SizedBox(height: 40),
           ],
-        ),
+
+          SizedBox(
+            height: 280,
+            width: 280,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CircularProgressIndicator(
+                  value: vm.progress,
+                  strokeWidth: 18,
+                  backgroundColor: isDark ? Colors.white10 : Colors.grey[200],
+                  valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+                  strokeCap: StrokeCap.round,
+                ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _formatTime(vm.pomodoroTimeLeft),
+                      style: GoogleFonts.roboto(
+                        fontSize: 56, 
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (vm.selectedTaskObj != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          vm.selectedTaskObj!.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 14, color: theme.colorScheme.primary, fontWeight: FontWeight.w600),
+                        ),
+                      )
+                    else
+                      Text("Frit fokus", style: TextStyle(color: Colors.grey[500])),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+
+          if (!vm.isTimerRunning)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade200),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: vm.selectedTaskId,
+                  isExpanded: true,
+                  dropdownColor: theme.colorScheme.surface,
+                  hint: Text("Vælg en opgave at fokusere på", style: TextStyle(color: Colors.grey[500])),
+                  items: [
+                    DropdownMenuItem(value: null, child: Text("Ingen specifik opgave", style: TextStyle(color: theme.colorScheme.onSurface))),
+                    ...vm.tasks.where((t) => !t.isCompleted).map((task) {
+                      return DropdownMenuItem(
+                        value: task.id,
+                        child: Text(task.title, style: TextStyle(color: theme.colorScheme.onSurface)),
+                      );
+                    }).toList(),
+                  ],
+                  onChanged: (id) => vm.setSelectedTask(id),
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 30),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FloatingActionButton.large(
+                heroTag: 'timer_control',
+                onPressed: vm.isTimerRunning ? vm.stopTimer : vm.startTimer,
+                backgroundColor: vm.isTimerRunning ? Colors.orangeAccent : theme.colorScheme.primary,
+                elevation: 5,
+                child: Icon(vm.isTimerRunning ? Icons.pause : Icons.play_arrow_rounded, color: Colors.white, size: 40),
+              ),
+              const SizedBox(width: 20),
+              FloatingActionButton(
+                heroTag: 'timer_reset',
+                onPressed: vm.resetTimer,
+                backgroundColor: theme.colorScheme.surface,
+                elevation: 2,
+                child: Icon(Icons.refresh_rounded, color: theme.colorScheme.onSurface),
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _TimeChip extends StatelessWidget {
+  final int minutes;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _TimeChip({required this.minutes, required this.isSelected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : (isDark ? Colors.white12 : Colors.grey.shade200)
+          ),
+          boxShadow: isSelected ? [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))] : [],
+        ),
+        child: Text("$minutes", style: TextStyle(color: isSelected ? Colors.white : theme.colorScheme.onSurface, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+}
+
+// --- SCREEN 2: GEN DO (AI) ---
+class GenUiCenterScreen extends StatefulWidget {
+  const GenUiCenterScreen({super.key});
+  @override
+  State<GenUiCenterScreen> createState() => _GenUiCenterScreenState();
+}
+
+class _GenUiCenterScreenState extends State<GenUiCenterScreen> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<AppViewModel>();
+    final theme = Theme.of(context);
+    final isDark = vm.isDarkMode;
+
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SvgPicture.asset('assets/gendo_logo.svg', height: 80),
+          const SizedBox(height: 20),
+          Text("Hvad vil du opnå?", style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text("Beskriv dit mål, så nedbryder AI det til handlinger.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[500])),
+          const SizedBox(height: 30),
+          TextField(
+            controller: _controller,
+            style: TextStyle(color: theme.colorScheme.onSurface),
+            decoration: InputDecoration(
+              hintText: "F.eks. 'Lær at spille guitar'",
+              filled: true,
+              fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.all(20),
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 55,
+            child: ElevatedButton(
+              onPressed: vm.isLoading ? null : () {
+                if (_controller.text.isNotEmpty) {
+                  vm.generatePlanFromAI(_controller.text);
+                  _controller.clear();
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Plan genereret!")));
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 4,
+                shadowColor: theme.colorScheme.primary.withOpacity(0.4),
+              ),
+              child: vm.isLoading 
+                ? const CircularProgressIndicator(color: Colors.white) 
+                : const Text("Generer Plan", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// --- SCREEN 3: TO-DO LIST ---
+class TodoListScreen extends StatelessWidget {
+  const TodoListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<AppViewModel>();
+    final theme = Theme.of(context);
+    final isDark = vm.isDarkMode;
+
+    return Scaffold(
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+        heroTag: 'add_task_btn',
+        onPressed: () => _showAddDialog(context, vm),
+        backgroundColor: theme.colorScheme.primary,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+      body: vm.tasks.isEmpty 
+        ? Center(child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.checklist_rtl_rounded, size: 64, color: Colors.grey[300]),
+              const SizedBox(height: 16),
+              Text("Ingen opgaver endnu", style: TextStyle(color: Colors.grey[500])),
+            ],
+          ))
+        : ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: vm.tasks.length,
+            itemBuilder: (ctx, i) {
+              final task = vm.tasks[i];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: isDark ? Colors.white10 : Colors.transparent),
+                  boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: IconButton(
+                    icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined),
+                    color: task.isCompleted ? Colors.green : Colors.grey,
+                    onPressed: () => vm.toggleTask(task.id),
+                  ),
+                  title: Text(
+                    task.title, 
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: task.isCompleted ? Colors.grey : theme.colorScheme.onSurface,
+                      decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                    )
+                  ),
+                  subtitle: Text(task.category, style: TextStyle(fontSize: 12, color: theme.colorScheme.primary.withOpacity(0.7))),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                    onPressed: () => vm.deleteTask(task.id),
+                  ),
+                ),
+              );
+            },
+          ),
+    );
+  }
+
+  void _showAddDialog(BuildContext context, AppViewModel vm) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Ny Opgave"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: TextField(
+          controller: controller, 
+          autofocus: true,
+          decoration: const InputDecoration(hintText: "Hvad skal laves?"),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
+          ElevatedButton(onPressed: () {
+            if (controller.text.isNotEmpty) {
+              vm.addTask(controller.text);
+              Navigator.pop(context);
+            }
+          }, child: const Text("Tilføj")),
+        ],
+      ),
     );
   }
 }

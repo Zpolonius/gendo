@@ -1,0 +1,20 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="craneGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6C63FF" />
+      <stop offset="100%" stop-color="#4FC3F7" />
+    </linearGradient>
+    <linearGradient id="shadowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#544AF0" />
+      <stop offset="100%" stop-color="#81D4FA" />
+    </linearGradient>
+  </defs>
+  <g transform="translate(50, 50) scale(0.8)">
+    <path d="M150 300 L50 100 L220 250 Z" fill="url(#shadowGradient)" opacity="0.9" />
+    <path d="M220 250 L450 50 L300 350 Z" fill="url(#craneGradient)" />
+    <path d="M220 250 L300 350 L200 450 Z" fill="#5E54E8" />
+    <path d="M300 350 L400 150 L420 180 L360 320 Z" fill="url(#craneGradient)" />
+    <path d="M220 250 L300 350" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M220 250 L150 300" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg> 
