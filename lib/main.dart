@@ -41,7 +41,6 @@ class GenDoApp extends StatelessWidget {
           surface: Colors.white,
         ),
         scaffoldBackgroundColor: const Color(0xFFF4F6F8),
-        // cardTheme fjernet for at undgå type-konflikt
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0.0,
@@ -61,7 +60,6 @@ class GenDoApp extends StatelessWidget {
           surface: const Color(0xFF1E1E2C),
         ),
         scaffoldBackgroundColor: const Color(0xFF121212),
-        // cardTheme fjernet for at undgå type-konflikt
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0.0,
@@ -94,7 +92,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 1;
   
-  // Metode til at skifte fane, som vi sender ned til child widgets
   void _switchTab(int index) {
     setState(() {
       _currentIndex = index;
@@ -107,7 +104,6 @@ class _MainScreenState extends State<MainScreen> {
     final isDark = vm.isDarkMode;
     final theme = Theme.of(context);
 
-    // Vi opretter skærmene i build metoden for at kunne sende _switchTab med
     final List<Widget> screens = [
       const PomodoroScreen(),
       const GenUiCenterScreen(),
@@ -156,7 +152,9 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-// --- WIDGET: KATEGORI SELECTOR (CHIPS) ---
+// ... (Resten af koden er uændret: _CategorySelector, _DateSelector, PomodoroScreen, _TimeChip, GenUiCenterScreen, TodoListScreen, _TaskCard) ...
+// Jeg inkluderer de nødvendige widgets herunder for at filen er komplet og kører korrekt.
+
 class _CategorySelector extends StatefulWidget {
   final String initialCategory;
   final Function(String) onChanged;
@@ -182,7 +180,6 @@ class _CategorySelectorState extends State<_CategorySelector> {
     final theme = Theme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Sørg for at vi har den valgte kategori, selv hvis den er slettet (fallback)
     if (!vm.categories.contains(_selectedCategory) && vm.categories.isNotEmpty) {
        _selectedCategory = vm.categories.first;
     }
@@ -214,7 +211,6 @@ class _CategorySelectorState extends State<_CategorySelector> {
                     widget.onChanged(category);
                   }
                 },
-                // Styling for et lækkert look
                 selectedColor: theme.colorScheme.primary,
                 backgroundColor: isDark ? Colors.white10 : Colors.grey[100],
                 labelStyle: TextStyle(
@@ -227,10 +223,9 @@ class _CategorySelectorState extends State<_CategorySelector> {
                     color: isSelected ? Colors.transparent : (isDark ? Colors.white24 : Colors.grey[300]!),
                   ),
                 ),
-                showCheckmark: false, // Renere look uden flueben
+                showCheckmark: false,
               );
             }),
-            // "Tilføj Ny" knap
             ActionChip(
               label: const Icon(Icons.add, size: 18),
               onPressed: () => _showAddCategoryDialog(context, vm),
@@ -276,7 +271,6 @@ class _CategorySelectorState extends State<_CategorySelector> {
   }
 }
 
-// --- WIDGET: DATE SELECTOR HELPER ---
 class _DateSelector extends StatelessWidget {
   final DateTime? selectedDate;
   final Function(DateTime?) onDateChanged;
@@ -354,7 +348,6 @@ class _DateSelector extends StatelessWidget {
   }
 }
 
-// --- POMODORO SCREEN ---
 class PomodoroScreen extends StatefulWidget {
   const PomodoroScreen({super.key});
   @override
@@ -800,7 +793,6 @@ class TodoListScreen extends StatelessWidget {
                     onChanged: (val) => selectedCategory = val,
                   ),
                   const SizedBox(height: 15),
-                  // DATO VÆLGER I OPRET
                   _DateSelector(
                     selectedDate: selectedDate,
                     onDateChanged: (date) => setState(() => selectedDate = date),
@@ -822,7 +814,7 @@ class TodoListScreen extends StatelessWidget {
                     titleController.text,
                     category: selectedCategory,
                     description: descController.text,
-                    dueDate: selectedDate, // Sender datoen med
+                    dueDate: selectedDate, 
                   );
                   Navigator.pop(context);
                 }
@@ -979,7 +971,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     onChanged: (val) => selectedCategory = val,
                   ),
                   const SizedBox(height: 15),
-                  // DATO VÆLGER I EDIT
                   _DateSelector(
                     selectedDate: selectedDate,
                     onDateChanged: (date) => setState(() => selectedDate = date),
@@ -1037,13 +1028,26 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+        // Ændret fra 'close' til 'arrow_back' for at give bedre navigationsfølelse
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined), 
             onPressed: () => _showEditDialog(context, vm, task)
           ), 
           const SizedBox(width: 8),
+          // TILFØJET GEM KNAP
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.primary,
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              child: const Text("GEM"),
+            ),
+          )
         ],
       ),
       body: SafeArea(
