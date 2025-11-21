@@ -12,17 +12,24 @@ import 'services/firestore_service.dart';
 import 'screens/login_screen.dart';
 import 'widgets/app_drawer.dart'; 
 
-// IMPORT AF DE NYE SKÆRME
-
 import 'screens/pomodoro_screen.dart';
 import 'screens/todo_list_screen.dart';
 import 'screens/gen_ui_screen.dart';
 
-// import 'firebase_options.dart'; // AKTIVER DENNE LINJE NÅR DU HAR KØRT FLUTTERFIRE CONFIGURE
+// import 'firebase_options.dart'; // SIKR DIG AT DENNE FIL ER OPRETTET MED 'flutterfire configure'
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); 
+  
+  // Vi prøver at initialisere Firebase. Hvis det fejler (f.eks. manglende config), fanger vi det.
+  try {
+    // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(); 
+  } catch (e) {
+    print("Firebase Init Error: $e");
+    // Appen vil stadig køre, men med Mock data indtil Firebase er fixet
+  }
+
   runApp(const GenDoApp());
 }
 
@@ -50,6 +57,7 @@ class GenDoApp extends StatelessWidget {
           },
         ),
       ],
+      // Flyttet Consumer/Builder herned for at sikre at theme opdateres
       child: const GenDoMaterialApp(),
     );
   }
@@ -60,12 +68,17 @@ class GenDoMaterialApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Vi lytter nu på VM her for at opdatere temaet live
+    final vm = context.watch<AppViewModel>();
+    
     final primaryColor = const Color(0xFF6C63FF);
     final textTheme = GoogleFonts.poppinsTextTheme();
 
     return MaterialApp(
       title: 'GenDo',
       debugShowCheckedModeBanner: false,
+      
+      // Light Theme
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
@@ -82,6 +95,8 @@ class GenDoMaterialApp extends StatelessWidget {
           iconTheme: IconThemeData(color: Colors.black87),
         ),
       ),
+
+      // Dark Theme
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
@@ -108,6 +123,10 @@ class GenDoMaterialApp extends StatelessWidget {
           hintStyle: TextStyle(color: Colors.grey[500]),
         ),
       ),
+      
+      // Bruger valget fra ViewModel (som nu hentes fra Firebase)
+      themeMode: vm.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      
       home: const AuthWrapper(),
     );
   }
@@ -119,6 +138,7 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<User?>();
+    // Simpel auth check. Hvis Firebase init fejlede, er user null, og vi ser LoginScreen.
     if (user != null) {
       return const MainScreen();
     } else {
@@ -148,7 +168,6 @@ class _MainScreenState extends State<MainScreen> {
     final isDark = vm.isDarkMode;
     final theme = Theme.of(context);
 
-    // Nu er disse skærme flyttet ud i egne filer!
     final List<Widget> screens = [
       const PomodoroScreen(),
       const GenUiScreen(),
@@ -156,8 +175,14 @@ class _MainScreenState extends State<MainScreen> {
     ];
 
     return Scaffold(
-      drawer: const AppDrawer(),
+      // ÆNDRING: 'endDrawer' placerer menuen i højre side
+      endDrawer: const AppDrawer(),
+      
       appBar: AppBar(
+        // Vi fjerner actions (ikonerne), da Flutter automatisk viser hamburger-menuen
+        // i højre side, når vi bruger endDrawer.
+        automaticallyImplyLeading: false, // Fjerner tilbage-pil/venstre menu
+        
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -48,7 +48,6 @@ class FirestoreService implements TaskRepository {
         return List<String>.from(data['categories']);
       }
     }
-    // Default categories if none exist
     return ['Generelt', 'Arbejde', 'Personlig', 'Studie', 'Dev', 'QA']; 
   }
 
@@ -57,5 +56,26 @@ class FirestoreService implements TaskRepository {
     await _userDoc.set({
       'categories': FieldValue.arrayUnion([category])
     }, SetOptions(merge: true));
+  }
+
+  // --- THEME SYNC (Nye metoder) ---
+
+  @override
+  Future<bool> getThemePreference() async {
+    final doc = await _userDoc.get();
+    if (doc.exists && doc.data() != null) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data.containsKey('isDarkMode')) {
+        return data['isDarkMode'] as bool;
+      }
+    }
+    return false; // Default til light mode
+  }
+
+  @override
+  Future<void> updateThemePreference(bool isDarkMode) async {
+    await _userDoc.set({
+      'isDarkMode': isDarkMode
+    }, SetOptions(merge: true)); // Merge sikrer at vi ikke overskriver kategorier
   }
 }
