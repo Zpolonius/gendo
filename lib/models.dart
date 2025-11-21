@@ -42,4 +42,30 @@ class TodoTask {
       createdAt: createdAt ?? this.createdAt,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'category': category,
+      'description': description,
+      'dueDate': dueDate?.millisecondsSinceEpoch,
+      'priority': priority.index,
+      'isCompleted': isCompleted,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+    };
+  }
+
+  factory TodoTask.fromMap(Map<String, dynamic> map) {
+    return TodoTask(
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      category: map['category'] ?? 'Generelt',
+      description: map['description'] ?? '',
+      dueDate: map['dueDate'] != null ? DateTime.fromMillisecondsSinceEpoch(map['dueDate']) : null,
+      priority: TaskPriority.values[map['priority'] ?? 1],
+      isCompleted: map['isCompleted'] ?? false,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? DateTime.now().millisecondsSinceEpoch),
+    );
+  }
 }

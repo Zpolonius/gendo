@@ -1,93 +1,90 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart'; // Til datoformatering
-import 'models.dart';
-import 'repository.dart';
+import 'package:intl/intl.dart';
 import 'viewmodel.dart';
+import 'repository.dart';
+import 'models.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'services/auth_service.dart';
+import 'screens/login_screen.dart';
 
-void main() {
-  final taskRepository = MockTaskRepository();
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AppViewModel(taskRepository)),
-      ],
-      child: const GenDoApp(),
-    ),
-  );
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const MyApp());
 }
 
-class GenDoApp extends StatelessWidget {
-  const GenDoApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final vm = context.watch<AppViewModel>();
-    const primaryColor = Color(0xFF6C63FF);
-    final textTheme = GoogleFonts.poppinsTextTheme();
-
-    return MaterialApp(
-      title: 'GenDo',
-      debugShowCheckedModeBanner: false,
-      
-      // --- LIGHT THEME ---
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        textTheme: textTheme,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
-          surface: Colors.white,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF4F6F8),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          elevation: 0.0,
-          centerTitle: true,
-          iconTheme: IconThemeData(color: Colors.black87),
-        ),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AppViewModel(MockTaskRepository())),
+        Provider<AuthService>(create: (_) => AuthService()),
+      ],
+      child: Consumer<AppViewModel>(
+        builder: (context, vm, child) {
+          return MaterialApp(
+            title: 'GenDo',
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFF6C63FF),
+                brightness: Brightness.light,
+              ),
+              useMaterial3: true,
+              textTheme: GoogleFonts.poppinsTextTheme(),
+            ),
+            darkTheme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFF6C63FF),
+                brightness: Brightness.dark,
+              ),
+              useMaterial3: true,
+              textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
+            ),
+            themeMode: vm.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            home: const AuthWrapper(),
+          );
+        },
       ),
+    );
+  }
+}
 
-      // --- DARK THEME ---
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        textTheme: textTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
-          brightness: Brightness.dark,
-          surface: const Color(0xFF1E1E2C),
-        ),
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          elevation: 0.0,
-          centerTitle: true,
-          iconTheme: IconThemeData(color: Colors.white),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFF2A2A3D),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final authService = Provider.of<AuthService>(context);
+    return StreamBuilder(
+      stream: authService.user,
+      builder: (_, AsyncSnapshot snapshot) {
+        if (snapshot.connectionState == ConnectionState.active) {
+          final user = snapshot.data;
+          return user == null ? const LoginScreen() : const MainScreen();
+        }
+        return const Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
           ),
-          hintStyle: TextStyle(color: Colors.grey[500]),
-        ),
-      ),
-      
-      themeMode: vm.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: const MainScreen(),
+        );
+      },
     );
   }
 }
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
+
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
+
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 1;

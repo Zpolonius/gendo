@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "19090655500",
+    "project_id": "gendo-a3592",
+    "storage_bucket": "gendo-a3592.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:19090655500:android:7c3397f8ecb19be82de129",
+        "android_client_info": {
+          "package_name": "com.example.gendo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5aq5fRtGWyO0YjnVVjmIJ3uMq-Sn4Srk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
