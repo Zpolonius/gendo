@@ -39,6 +39,9 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
 
   void _showCompletionDialog(BuildContext context, AppViewModel vm) {
     setState(() => _isDialogShowing = true);
+    // Hvis pauser er slået fra i indstillinger, spørger vi ikke om "pause", men bare om opgaven er færdig.
+    final breaksEnabled = vm.pomodoroSettings.enableBreaks;
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -51,8 +54,10 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
             const SizedBox(height: 10),
             if (vm.selectedTaskId != null)
               Text("Blev du færdig med '${vm.selectedTaskObj?.title}'?", style: const TextStyle(fontWeight: FontWeight.bold)),
-            if (vm.selectedTaskId == null)
+            if (vm.selectedTaskId == null && breaksEnabled)
                const Text("Er du klar til en pause?"),
+            if (vm.selectedTaskId == null && !breaksEnabled)
+               const Text("Klar til næste session?"),
           ],
         ),
         actions: [
@@ -61,49 +66,20 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
               Navigator.pop(ctx);
               vm.completeWorkSession(false);
             },
-            child: const Text("Nej, ikke endnu"),
+            child: const Text("Nej"),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
               vm.completeWorkSession(true);
             },
-            child: const Text("Ja, færdig!"),
+            child: const Text("Ja, videre!"),
           ),
         ],
       ),
     ).then((_) {
       if (mounted) setState(() => _isDialogShowing = false);
     });
-  }
-
-  void _showCustomTimeDialog(BuildContext context, AppViewModel vm) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Sæt tid (minutter)"),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: "F.eks. 60", suffixText: "min"),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
-          ElevatedButton(
-            onPressed: () {
-              final int? minutes = int.tryParse(controller.text);
-              if (minutes != null && minutes > 0) {
-                vm.setDuration(minutes);
-                Navigator.pop(context);
-              }
-            }, 
-            child: const Text("Sæt"),
-          ),
-        ],
-      ),
-    );
   }
 
   String _formatTime(int seconds) {
@@ -117,9 +93,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
     final vm = context.watch<AppViewModel>();
     final theme = Theme.of(context);
     final isDark = vm.isDarkMode;
-
-    final currentMinutes = vm.pomodoroDurationTotal ~/ 60;
-    final isCustomSelected = ![10, 20, 30].contains(currentMinutes);
     
     final timerColor = vm.isOnBreak ? Colors.green[400] : theme.colorScheme.primary;
     final statusText = vm.isOnBreak 
@@ -130,23 +103,8 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          if (!vm.isTimerRunning && !vm.isOnBreak) ...[
-            Text("VÆLG VARIGHED", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
-            const SizedBox(height: 15),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _TimeChip(label: "10", isSelected: currentMinutes == 10, onTap: () => vm.setDuration(10)),
-                const SizedBox(width: 12),
-                _TimeChip(label: "20", isSelected: currentMinutes == 20, onTap: () => vm.setDuration(20)),
-                const SizedBox(width: 12),
-                _TimeChip(label: "30", isSelected: currentMinutes == 30, onTap: () => vm.setDuration(30)),
-                const SizedBox(width: 12),
-                _TimeChip(label: "Custom", isSelected: isCustomSelected, onTap: () => _showCustomTimeDialog(context, vm)),
-              ],
-            ),
-            const SizedBox(height: 40),
-          ],
+          // Chips er fjernet for et renere look!
+          const SizedBox(height: 20),
 
           if (vm.isOnBreak) ...[
              Container(
@@ -161,14 +119,14 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
           ],
 
           SizedBox(
-            height: 280,
-            width: 280,
+            height: 300, // Lidt større nu hvor vi har plads
+            width: 300,
             child: Stack(
               fit: StackFit.expand,
               children: [
                 CircularProgressIndicator(
                   value: vm.progress,
-                  strokeWidth: 18,
+                  strokeWidth: 20, // Tykkere ring
                   backgroundColor: isDark ? Colors.white10 : Colors.grey[200],
                   valueColor: AlwaysStoppedAnimation<Color>(timerColor!),
                   strokeCap: StrokeCap.round,
@@ -179,28 +137,28 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                     Text(
                       _formatTime(vm.pomodoroTimeLeft),
                       style: GoogleFonts.roboto(
-                        fontSize: 56, 
+                        fontSize: 64, // Større tekst
                         fontWeight: FontWeight.bold,
                         color: isDark ? Colors.white : Colors.black87
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     if (!vm.isOnBreak && vm.selectedTaskObj != null)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                        child: Text(vm.selectedTaskObj!.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: theme.colorScheme.primary, fontWeight: FontWeight.w600)),
+                        child: Text(vm.selectedTaskObj!.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, color: theme.colorScheme.primary, fontWeight: FontWeight.w600)),
                       )
                     else if (vm.isOnBreak)
                        Text("Træk vejret dybt...", style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.w500)),
                     if (!vm.isOnBreak && vm.selectedTaskObj == null)
-                      Text("Frit fokus", style: TextStyle(color: Colors.grey[500])),
+                      Text("Frit fokus", style: TextStyle(color: Colors.grey[500], fontSize: 16)),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 60),
 
           if (!vm.isTimerRunning && !vm.isOnBreak)
             Container(
@@ -225,7 +183,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
               ),
             ),
 
-          const SizedBox(height: 30),
+          const SizedBox(height: 40),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -236,7 +194,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                   onPressed: vm.isTimerRunning ? vm.stopTimer : vm.startTimer,
                   backgroundColor: vm.isTimerRunning ? Colors.orangeAccent : theme.colorScheme.primary,
                   elevation: 5,
-                  child: Icon(vm.isTimerRunning ? Icons.pause : Icons.play_arrow_rounded, color: Colors.white, size: 40),
+                  child: Icon(vm.isTimerRunning ? Icons.pause : Icons.play_arrow_rounded, color: Colors.white, size: 48),
                 ),
               
               if (vm.isOnBreak)
@@ -252,7 +210,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                 ),
 
               if (!vm.isOnBreak) ...[
-                const SizedBox(width: 20),
+                const SizedBox(width: 30),
                 FloatingActionButton(
                   heroTag: 'timer_reset',
                   onPressed: vm.resetTimer,
@@ -264,34 +222,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _TimeChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  const _TimeChip({required this.label, required this.isSelected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? Colors.transparent : (isDark ? Colors.white12 : Colors.grey.shade200)),
-          boxShadow: isSelected ? [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))] : [],
-        ),
-        child: Text(label, style: TextStyle(color: isSelected ? Colors.white : theme.colorScheme.onSurface, fontWeight: FontWeight.bold)),
       ),
     );
   }

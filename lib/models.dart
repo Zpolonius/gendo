@@ -4,9 +4,9 @@ class TodoTask {
   final String id;
   final String title;
   final String category;
-  final String description; // Ny: Notater/Beskrivelse
-  final DateTime? dueDate;  // Ny: Deadline
-  final TaskPriority priority; // Ny: Prioritet
+  final String description;
+  final DateTime? dueDate;
+  final TaskPriority priority;
   bool isCompleted;
   final DateTime createdAt;
 
@@ -66,6 +66,35 @@ class TodoTask {
       priority: TaskPriority.values[map['priority'] ?? 1],
       isCompleted: map['isCompleted'] ?? false,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? DateTime.now().millisecondsSinceEpoch),
+    );
+  }
+}
+
+// --- NY MODEL: POMODORO SETTINGS ---
+class PomodoroSettings {
+  final int workDurationMinutes;
+  final bool enableBreaks;
+  final bool enableLongBreaks;
+
+  PomodoroSettings({
+    this.workDurationMinutes = 25,
+    this.enableBreaks = true,
+    this.enableLongBreaks = true,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'workDurationMinutes': workDurationMinutes,
+      'enableBreaks': enableBreaks,
+      'enableLongBreaks': enableLongBreaks,
+    };
+  }
+
+  factory PomodoroSettings.fromMap(Map<String, dynamic> map) {
+    return PomodoroSettings(
+      workDurationMinutes: map['workDurationMinutes'] ?? 25,
+      enableBreaks: map['enableBreaks'] ?? true,
+      enableLongBreaks: map['enableLongBreaks'] ?? true,
     );
   }
 }
