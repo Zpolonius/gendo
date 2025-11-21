@@ -108,7 +108,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     
     final vm = context.watch<AppViewModel>();
     // Fallback til initialTask hvis opgaven slettes mens man kigger på den
-    final task = vm.tasks.firstWhere((t) => t.id == widget.taskId, orElse: () => widget.initialTask);
+    final task = vm.allTasks.firstWhere((t) => t.id == widget.taskId, orElse: () => widget.initialTask);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,

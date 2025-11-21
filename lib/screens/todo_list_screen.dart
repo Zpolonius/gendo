@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Til at tjekke ejerskab
 import '../models.dart';
+import '../models/todo_list.dart';
 import '../viewmodel.dart';
 import 'task_detail_screen.dart';
 import '../widgets/category_selector.dart';
@@ -17,36 +19,164 @@ class TodoListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<AppViewModel>();
     final theme = Theme.of(context);
+    final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         heroTag: 'add_task_btn',
         onPressed: () => _showAddDialog(context, vm),
         backgroundColor: theme.colorScheme.primary,
-        child: const Icon(Icons.add, color: Colors.white),
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text("Ny Opgave", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
-      body: vm.tasks.isEmpty 
-        ? Center(child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.checklist_rtl_rounded, size: 64, color: Colors.grey[300]),
-              const SizedBox(height: 16),
-              Text("Ingen opgaver endnu", style: TextStyle(color: Colors.grey[500])),
-            ],
-          ))
-        : ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: vm.tasks.length,
-            itemBuilder: (ctx, i) {
-              final task = vm.tasks[i];
-              return TaskCard(
-                task: task, 
-                onTap: () => _openTaskDetail(context, task, vm),
-                onToggle: () => vm.toggleTask(task.id),
-                onDelete: () => vm.deleteTask(task.id),
-              );
-            },
+      body: Column(
+        children: [
+          // --- HEADER: OPRET LISTE ---
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "MINE LISTER", 
+                  style: TextStyle(
+                    fontSize: 12, 
+                    fontWeight: FontWeight.bold, 
+                    color: Colors.grey[600], 
+                    letterSpacing: 1.2
+                  )
+                ),
+                TextButton.icon(
+                  onPressed: () => _showCreateListDialog(context, vm),
+                  icon: const Icon(Icons.add_circle_outline, size: 18),
+                  label: const Text("Ny Liste"),
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.primary,
+                    textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
           ),
+
+          // --- LISTE OVER LISTER ---
+          Expanded(
+            child: vm.lists.isEmpty 
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.list_alt_rounded, size: 64, color: Colors.grey[300]),
+                      const SizedBox(height: 16),
+                      Text("Ingen lister endnu", style: TextStyle(color: Colors.grey[500])),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => _showCreateListDialog(context, vm),
+                        child: const Text("Opret din første liste"),
+                      )
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: () => vm.loadData(),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 80), // Plads til FAB
+                    itemCount: vm.lists.length,
+                    itemBuilder: (ctx, i) {
+                      final list = vm.lists[i];
+                      // Filtrer opgaver der hører til denne liste
+                      final listTasks = vm.allTasks.where((t) => t.listId == list.id).toList();
+                      final isOwner = currentUser?.uid == list.ownerId;
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+                        ),
+                        clipBehavior: Clip.antiAlias, // Sikrer at ripples holder sig indenfor
+                        child: Theme(
+                          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            // Sæt denne liste som aktiv når den åbnes
+                            onExpansionChanged: (expanded) {
+                              if (expanded) vm.setActiveList(list.id);
+                            },
+                            backgroundColor: theme.colorScheme.surface,
+                            collapsedBackgroundColor: theme.colorScheme.surface,
+                            title: Text(
+                              list.title,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            subtitle: Text(
+                              "${listTasks.length} opgaver • ${list.memberIds.length} medlemmer",
+                              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                            ),
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.list, color: theme.colorScheme.primary, size: 20),
+                            ),
+                            trailing: PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert, color: Colors.grey),
+                              onSelected: (value) {
+                                if (value == 'invite') _showInviteDialog(context, vm, list);
+                                if (value == 'delete') _showDeleteListDialog(context, vm, list);
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'invite',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.person_add_outlined, size: 20),
+                                      SizedBox(width: 8),
+                                      Text("Inviter medlem"),
+                                    ],
+                                  ),
+                                ),
+                                if (isOwner)
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text("Slet liste", style: TextStyle(color: Colors.red)),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            children: [
+                              // --- OPGAVER I LISTEN ---
+                              if (listTasks.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Text("Ingen opgaver i denne liste.", style: TextStyle(color: Colors.grey[400], fontStyle: FontStyle.italic)),
+                                )
+                              else
+                                ...listTasks.map((task) => _TaskCard(
+                                  task: task, 
+                                  onTap: () => _openTaskDetail(context, task, vm),
+                                  onToggle: () => vm.toggleTask(task.id),
+                                  onDelete: () => vm.deleteTask(task.id),
+                                  compact: true, // Lidt mindre padding i listen
+                                )),
+                              const SizedBox(height: 8),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -67,12 +197,114 @@ class TodoListScreen extends StatelessWidget {
     );
   }
 
+  // --- DIALOG: OPRET LISTE ---
+  void _showCreateListDialog(BuildContext context, AppViewModel vm) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Ny Liste"),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: "F.eks. 'Indkøb' eller 'Projekt X'"),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                vm.createList(controller.text);
+                Navigator.pop(ctx);
+              }
+            }, 
+            child: const Text("Opret")
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- DIALOG: INVITER BRUGER ---
+  void _showInviteDialog(BuildContext context, AppViewModel vm, TodoList list) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Inviter til '${list.title}'"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Indtast e-mailen på den bruger, du vil invitere:", style: TextStyle(fontSize: 14, color: Colors.grey)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: "E-mail",
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.isNotEmpty) {
+                try {
+                  await vm.inviteUser(list.id, controller.text.trim());
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invitation sendt!")));
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fejl: $e"), backgroundColor: Colors.red));
+                }
+              }
+            }, 
+            child: const Text("Inviter")
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- DIALOG: SLET LISTE ---
+  void _showDeleteListDialog(BuildContext context, AppViewModel vm, TodoList list) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Slet Liste?"),
+        content: Text("Er du sikker på, at du vil slette '${list.title}' og alle dens opgaver? Dette kan ikke fortrydes."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
+          TextButton(
+            onPressed: () {
+              vm.deleteList(list.id);
+              Navigator.pop(ctx);
+            }, 
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Slet"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- DIALOG: OPRET OPGAVE (OPDATERET) ---
   void _showAddDialog(BuildContext context, AppViewModel vm) {
     final titleController = TextEditingController();
     final descController = TextEditingController();
     String selectedCategory = 'Generelt';
     DateTime? selectedDate;
     TaskPriority selectedPriority = TaskPriority.medium;
+    
+    // Vi skal bruge en liste til opgaven. Brug den aktive, eller den første.
+    String? targetListId = vm.activeListId ?? (vm.lists.isNotEmpty ? vm.lists.first.id : null);
+
+    if (targetListId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opret venligst en liste først!")));
+      return;
+    }
 
     showDialog(
       context: context,
@@ -86,6 +318,23 @@ class TodoListScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Vælg Liste Dropdown
+                  DropdownButtonFormField<String>(
+                    value: targetListId,
+                    decoration: const InputDecoration(labelText: "Tilføj til liste"),
+                    items: vm.lists.map((list) => DropdownMenuItem(
+                      value: list.id,
+                      child: Text(list.title),
+                    )).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => targetListId = val);
+                        vm.setActiveList(val); // Opdater aktiv liste i baggrunden
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  
                   TextField(
                     controller: titleController, 
                     autofocus: true,
@@ -118,7 +367,9 @@ class TodoListScreen extends StatelessWidget {
             actions: [
               TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
               ElevatedButton(onPressed: () {
-                if (titleController.text.isNotEmpty) {
+                if (titleController.text.isNotEmpty && targetListId != null) {
+                  // Sørg for at VM ved hvilken liste vi bruger
+                  vm.setActiveList(targetListId!);
                   vm.addTask(
                     titleController.text,
                     category: selectedCategory,
@@ -137,18 +388,20 @@ class TodoListScreen extends StatelessWidget {
   }
 }
 
-class TaskCard extends StatelessWidget {
+// Genbruger TaskCard, men tilføjer en 'compact' mode til visning i lister
+class _TaskCard extends StatelessWidget {
   final TodoTask task;
   final VoidCallback onTap;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
+  final bool compact;
 
-  const TaskCard({
-    super.key,
+  const _TaskCard({
     required this.task, 
     required this.onTap, 
     required this.onToggle, 
-    required this.onDelete
+    required this.onDelete,
+    this.compact = false,
   });
 
   Color _getPriorityColor(TaskPriority p) {
@@ -167,73 +420,68 @@ class TaskCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Hero(
-        tag: 'task_${task.id}',
-        child: Material(
-          type: MaterialType.transparency,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? Colors.white10 : Colors.transparent),
-              boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              leading: IconButton(
-                icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined),
-                color: task.isCompleted ? Colors.green : Colors.grey,
-                onPressed: onToggle,
-              ),
-              title: Text(
-                task.title, 
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: task.isCompleted ? Colors.grey : theme.colorScheme.onSurface,
-                  decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                )
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        // Hvis compact (inde i liste), fjern margin og brug en simpel border i bunden
+        margin: compact ? EdgeInsets.zero : const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: compact ? Colors.transparent : theme.colorScheme.surface,
+          border: compact 
+              ? Border(bottom: BorderSide(color: isDark ? Colors.white12 : Colors.grey.shade200))
+              : Border.all(color: isDark ? Colors.white10 : Colors.transparent),
+          borderRadius: compact ? BorderRadius.circular(0) : BorderRadius.circular(16),
+          boxShadow: (!compact && !isDark) ? [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))] : [],
+        ),
+        child: ListTile(
+          contentPadding: EdgeInsets.symmetric(horizontal: compact ? 8 : 16, vertical: compact ? 0 : 12),
+          leading: IconButton(
+            icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined),
+            color: task.isCompleted ? Colors.green : Colors.grey,
+            onPressed: onToggle,
+          ),
+          title: Text(
+            task.title, 
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: task.isCompleted ? Colors.grey : theme.colorScheme.onSurface,
+              decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+            )
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              Row(
                 children: [
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: _getPriorityColor(task.priority).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          task.priority.name.toUpperCase(),
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _getPriorityColor(task.priority)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(task.category, style: TextStyle(fontSize: 12, color: theme.colorScheme.primary.withOpacity(0.7))),
-                      if (task.dueDate != null) ...[
-                        const Spacer(),
-                        Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
-                        const SizedBox(width: 4),
-                        Text(
-                          dateFormatter.format(task.dueDate!),
-                          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                        ),
-                      ]
-                    ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _getPriorityColor(task.priority).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      task.priority.name.toUpperCase(),
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _getPriorityColor(task.priority)),
+                    ),
                   ),
+                  const SizedBox(width: 8),
+                  if (task.dueDate != null) ...[
+                    Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
+                    const SizedBox(width: 4),
+                    Text(
+                      dateFormatter.format(task.dueDate!),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ]
                 ],
               ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
-                onPressed: onDelete,
-              ),
-            ),
+            ],
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+            onPressed: onDelete,
           ),
         ),
       ),

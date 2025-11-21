@@ -176,7 +176,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                   hint: Text("Vælg en opgave at fokusere på", style: TextStyle(color: Colors.grey[500])),
                   items: [
                     DropdownMenuItem(value: null, child: Text("Ingen specifik opgave", style: TextStyle(color: theme.colorScheme.onSurface))),
-                    ...vm.tasks.where((t) => !t.isCompleted).map((task) => DropdownMenuItem(value: task.id, child: Text(task.title, style: TextStyle(color: theme.colorScheme.onSurface)))).toList(),
+                    ...vm.allTasks.where((t) => !t.isCompleted).map((task) => DropdownMenuItem(value: task.id, child: Text(task.title, style: TextStyle(color: theme.colorScheme.onSurface)))).toList(),
                   ],
                   onChanged: (id) => vm.setSelectedTask(id),
                 ),

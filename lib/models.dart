@@ -9,6 +9,7 @@ class TodoTask {
   final TaskPriority priority;
   bool isCompleted;
   final DateTime createdAt;
+  final String listId; // NYT FELT: Kobler opgaven til en liste
 
   TodoTask({
     required this.id,
@@ -19,6 +20,7 @@ class TodoTask {
     this.priority = TaskPriority.medium,
     this.isCompleted = false,
     required this.createdAt,
+    this.listId = '', // Default værdi for at undgå fejl
   });
 
   TodoTask copyWith({
@@ -30,6 +32,7 @@ class TodoTask {
     TaskPriority? priority,
     bool? isCompleted,
     DateTime? createdAt,
+    String? listId,
   }) {
     return TodoTask(
       id: id ?? this.id,
@@ -40,6 +43,7 @@ class TodoTask {
       priority: priority ?? this.priority,
       isCompleted: isCompleted ?? this.isCompleted,
       createdAt: createdAt ?? this.createdAt,
+      listId: listId ?? this.listId,
     );
   }
 
@@ -53,6 +57,7 @@ class TodoTask {
       'priority': priority.index,
       'isCompleted': isCompleted,
       'createdAt': createdAt.millisecondsSinceEpoch,
+      'listId': listId,
     };
   }
 
@@ -66,11 +71,12 @@ class TodoTask {
       priority: TaskPriority.values[map['priority'] ?? 1],
       isCompleted: map['isCompleted'] ?? false,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? DateTime.now().millisecondsSinceEpoch),
+      listId: map['listId'] ?? '',
     );
   }
 }
 
-// --- NY MODEL: POMODORO SETTINGS ---
+// --- POMODORO SETTINGS ---
 class PomodoroSettings {
   final int workDurationMinutes;
   final bool enableBreaks;
