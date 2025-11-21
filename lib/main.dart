@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import 'models.dart';
 import 'repository.dart';
 import 'viewmodel.dart';
 import 'services/auth_service.dart';
@@ -15,6 +14,7 @@ import 'widgets/app_drawer.dart';
 import 'screens/pomodoro_screen.dart';
 import 'screens/todo_list_screen.dart';
 import 'screens/gen_ui_screen.dart';
+
 
 // import 'firebase_options.dart'; // SIKR DIG AT DENNE FIL ER OPRETTET MED 'flutterfire configure'
 
