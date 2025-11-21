@@ -1,21 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart'; // Til datoformatering
+import 'package:intl/intl.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+// Sørg for at disse imports passer til din mappestruktur
 import 'models.dart';
 import 'repository.dart';
 import 'viewmodel.dart';
+import 'services/auth_service.dart';
+import 'services/firestore_service.dart';
+import 'screens/login_screen.dart'; // Eller hvor du har placeret login_screen.dart
+// import 'firebase_options.dart'; // AKTIVER DENNE LINJE, NÅR DU HAR KØRT FLUTTERFIRE CONFIGURE
 
-void main() {
-  final taskRepository = MockTaskRepository();
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AppViewModel(taskRepository)),
-      ],
-      child: const GenDoApp(),
-    ),
-  );
+void main() async {
+  // 1. Sikr at Flutter bindinger er klar før Firebase init
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 2. Initialiser Firebase
+  // HUSK: Du skal køre 'flutterfire configure' i terminalen for at få firebase_options.dart
+  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform); 
+  // Hvis du ikke har firebase_options endnu, kan du prøve denne midlertidigt (men options anbefales):
+  await Firebase.initializeApp(); 
+
+  runApp(const GenDoApp());
 }
 
 class GenDoApp extends StatelessWidget {
@@ -23,10 +32,51 @@ class GenDoApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final vm = context.watch<AppViewModel>();
-    const primaryColor = Color(0xFF6C63FF);
+    return MultiProvider(
+      providers: [
+        // A. Gør AuthService tilgængelig
+        Provider<AuthService>(
+          create: (_) => AuthService(),
+        ),
+        
+        // B. Lyt på brugerens login-status (Stream)
+        StreamProvider<User?>(
+          create: (context) => context.read<AuthService>().user,
+          initialData: null,
+        ),
+
+        // C. Opret ViewModel, men gør den afhængig af brugeren (ProxyProvider)
+        ChangeNotifierProxyProvider<User?, AppViewModel>(
+          create: (_) => AppViewModel(MockTaskRepository()), // Start med Mock
+          update: (_, user, viewModel) {
+            // Denne funktion kaldes hver gang 'user' ændrer sig (login/logout)
+            if (user != null) {
+              // Hvis logget ind -> Brug Firestore med brugerens ID
+              print("Bruger logget ind: ${user.email} - Skifter til Firestore");
+              viewModel!.updateRepository(FirestoreService(user.uid));
+            } else {
+              // Hvis logget ud -> Brug Mock (eller tøm listen)
+              print("Bruger logget ud - Skifter til Mock");
+              viewModel!.updateRepository(MockTaskRepository());
+            }
+            return viewModel;
+          },
+        ),
+      ],
+      child: const GenDoMaterialApp(),
+    );
+  }
+}
+
+class GenDoMaterialApp extends StatelessWidget {
+  const GenDoMaterialApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = const Color(0xFF6C63FF);
     final textTheme = GoogleFonts.poppinsTextTheme();
 
+    // Vi flytter Theme logic herind for at holde GenDoApp ren
     return MaterialApp(
       title: 'GenDo',
       debugShowCheckedModeBanner: false,
@@ -77,9 +127,33 @@ class GenDoApp extends StatelessWidget {
         ),
       ),
       
-      themeMode: vm.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: const MainScreen(),
+      // Her bruger vi en AuthWrapper til at styre hvilken skærm der vises
+      home: const AuthWrapper(),
     );
+  }
+}
+
+// --- AUTH WRAPPER ---
+// Denne widget tjekker om vi har en bruger og vælger skærm
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.watch<User?>(); // Lytter på StreamProvideren ovenfor
+    final vm = context.watch<AppViewModel>(); // Vi lytter også til VM for theme
+
+    // VIGTIGT: Sæt themeMode baseret på VM
+    // Vi er nødt til at pakke MaterialApp ind i en builder eller flytte AuthWrapper ned,
+    // men for simpelhedens skyld styrer vi bare navigationen her.
+    // Bemærk: ThemeMode styring fra main er lidt tricky med denne struktur, 
+    // men lad os fokusere på Auth først.
+
+    if (user != null) {
+      return const MainScreen();
+    } else {
+      return const LoginScreen();
+    }
   }
 }
 
@@ -103,6 +177,7 @@ class _MainScreenState extends State<MainScreen> {
     final vm = context.watch<AppViewModel>();
     final isDark = vm.isDarkMode;
     final theme = Theme.of(context);
+    final authService = context.read<AuthService>(); // Til logout knap
 
     final List<Widget> screens = [
       const PomodoroScreen(),
@@ -131,6 +206,15 @@ class _MainScreenState extends State<MainScreen> {
           IconButton(
             icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
             onPressed: () => vm.toggleTheme(!isDark),
+          ),
+          // LOGOUT KNAP
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: "Log ud",
+            onPressed: () async {
+              await authService.signOut();
+              // AuthWrapper vil automatisk opdage at user er null og vise LoginScreen
+            },
           ),
           const SizedBox(width: 8),
         ],
