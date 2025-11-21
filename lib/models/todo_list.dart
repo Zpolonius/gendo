@@ -3,6 +3,7 @@ class TodoList {
   final String title;
   final String ownerId;
   final List<String> memberIds;
+  final List<String> pendingEmails; // NYT FELT
   final DateTime createdAt;
 
   TodoList({
@@ -10,6 +11,7 @@ class TodoList {
     required this.title,
     required this.ownerId,
     required this.memberIds,
+    this.pendingEmails = const [], // Default tom
     required this.createdAt,
   });
 
@@ -19,6 +21,7 @@ class TodoList {
       'title': title,
       'ownerId': ownerId,
       'memberIds': memberIds,
+      'pendingEmails': pendingEmails, // Gem i DB
       'createdAt': createdAt.millisecondsSinceEpoch,
     };
   }
@@ -29,6 +32,7 @@ class TodoList {
       title: map['title'] ?? 'Ny Liste',
       ownerId: map['ownerId'] ?? '',
       memberIds: List<String>.from(map['memberIds'] ?? []),
+      pendingEmails: List<String>.from(map['pendingEmails'] ?? []), // Hent fra DB
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
     );
   }

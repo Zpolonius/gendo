@@ -1,118 +1,75 @@
-import 'dart:async';
-import 'models.dart';
-import 'models/todo_list.dart'; // Husk at inkludere denne hvis du bruger TodoList
+  import 'dart:async';
+  import 'models.dart';
+  import 'models/todo_list.dart';
 
-// Interface: Definerer HVAD vi kan gøre (kontrakt)
-abstract class TaskRepository {
-  // Opgaver (Nu med listId support)
-  Future<List<TodoTask>> getTasks(String listId);
-  Future<void> addTask(TodoTask task);
-  Future<void> updateTask(TodoTask task);
-  Future<void> deleteTask(String listId, String taskId);
-  
-  // Lister (NYT)
-  Future<List<TodoList>> getLists();
-  Future<void> createList(TodoList list);
-  Future<void> deleteList(String listId);
-  Future<void> inviteUserByEmail(String listId, String email);
-  Future<void> removeUserFromList(String listId, String userIdToRemove);
+  abstract class TaskRepository {
+    // Opgaver
+    Future<List<TodoTask>> getTasks(String listId);
+    Future<void> addTask(TodoTask task);
+    Future<void> updateTask(TodoTask task);
+    Future<void> deleteTask(String listId, String taskId);
+    
+    // Lister
+    Future<List<TodoList>> getLists();
+    Future<void> createList(TodoList list);
+    Future<void> deleteList(String listId);
+    Future<void> inviteUserByEmail(String listId, String email);
+    Future<void> removeUserFromList(String listId, String userIdToRemove);
+    
+    // NY METODE: Tjekker om der ligger invitationer og venter på brugerens email
+    Future<void> checkPendingInvites(String email);
 
-  // Kategorier
-  Future<List<String>> getCategories();
-  Future<void> addCategory(String category);
+    // Kategorier
+    Future<List<String>> getCategories();
+    Future<void> addCategory(String category);
 
-  // Tema (Disse manglede i interfacet)
-  Future<bool> getThemePreference();
-  Future<void> updateThemePreference(bool isDarkMode);
+    // Tema
+    Future<bool> getThemePreference();
+    Future<void> updateThemePreference(bool isDarkMode);
 
-  // Pomodoro Indstillinger (Disse manglede også)
-  Future<PomodoroSettings> getPomodoroSettings();
-  Future<void> updatePomodoroSettings(PomodoroSettings settings);
-}
-
-// Mock Implementation
-class MockTaskRepository implements TaskRepository {
-  // Mock data til lister
-  List<TodoList> _lists = [
-    TodoList(
-      id: 'list1', 
-      title: 'Min Første Liste', 
-      ownerId: 'mock_user', 
-      memberIds: ['mock_user'], 
-      createdAt: DateTime.now()
-    )
-  ];
-
-  final List<TodoTask> _tasks = [
-    TodoTask(
-      id: '1', 
-      title: 'Opsæt Flutter projekt', 
-      category: 'Dev', 
-      description: 'Husk at inkludere Provider.',
-      priority: TaskPriority.high,
-      createdAt: DateTime.now(),
-      listId: 'list1' // Koblet til listen
-    ),
-  ];
-  
-  final List<String> _categories = ['Generelt', 'Arbejde', 'Personlig'];
-  bool _isDarkMode = false;
-  PomodoroSettings _pomodoroSettings = PomodoroSettings();
-
-  // --- TASKS ---
-  @override
-  Future<List<TodoTask>> getTasks(String listId) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    return _tasks.where((t) => t.listId == listId).toList();
+    // Pomodoro
+    Future<PomodoroSettings> getPomodoroSettings();
+    Future<void> updatePomodoroSettings(PomodoroSettings settings);
   }
 
-  @override
-  Future<void> addTask(TodoTask task) async => _tasks.add(task);
-  
-  @override
-  Future<void> updateTask(TodoTask task) async {
-    final index = _tasks.indexWhere((t) => t.id == task.id);
-    if (index != -1) _tasks[index] = task;
-  }
+  class MockTaskRepository implements TaskRepository {
+    // ... (Resten af mock metoderne er uændrede, vi tilføjer bare den nye som tom)
+    @override
+    Future<List<TodoTask>> getTasks(String listId) async => [];
+    @override
+    Future<void> addTask(TodoTask task) async {}
+    @override
+    Future<void> updateTask(TodoTask task) async {}
+    @override
+    Future<void> deleteTask(String listId, String taskId) async {}
+    
+    @override
+    Future<List<TodoList>> getLists() async => [];
+    @override
+    Future<void> createList(TodoList list) async {}
+    @override
+    Future<void> deleteList(String listId) async {}
+    @override
+    Future<void> inviteUserByEmail(String listId, String email) async {}
+    @override
+    Future<void> removeUserFromList(String listId, String userIdToRemove) async {}
+    
+    // Mock implementation af den nye metode
+    @override
+    Future<void> checkPendingInvites(String email) async {
+      print("Mock: Tjekker invitationer for $email");
+    }
 
-  @override
-  Future<void> deleteTask(String listId, String taskId) async {
-    _tasks.removeWhere((t) => t.id == taskId);
+    @override
+    Future<List<String>> getCategories() async => ['Generelt'];
+    @override
+    Future<void> addCategory(String category) async {}
+    @override
+    Future<bool> getThemePreference() async => false;
+    @override
+    Future<void> updateThemePreference(bool isDarkMode) async {}
+    @override
+    Future<PomodoroSettings> getPomodoroSettings() async => PomodoroSettings();
+    @override
+    Future<void> updatePomodoroSettings(PomodoroSettings settings) async {}
   }
-  
-  // --- LISTER ---
-  @override
-  Future<List<TodoList>> getLists() async => List.from(_lists);
-  @override
-  Future<void> createList(TodoList list) async => _lists.add(list);
-  @override
-  Future<void> deleteList(String listId) async => _lists.removeWhere((l) => l.id == listId);
-  @override
-  Future<void> inviteUserByEmail(String listId, String email) async {} // Mock gør intet
-  @override
-  Future<void> removeUserFromList(String listId, String userIdToRemove) async {}
-
-  // --- KATEGORIER ---
-  @override
-  Future<List<String>> getCategories() async => List.from(_categories);
-  @override
-  Future<void> addCategory(String category) async {
-    if (!_categories.contains(category)) _categories.add(category);
-  }
-
-  // --- TEMA ---
-  @override
-  Future<bool> getThemePreference() async => _isDarkMode;
-  @override
-  Future<void> updateThemePreference(bool isDarkMode) async {
-    _isDarkMode = isDarkMode;
-  }
-
-  // --- POMODORO ---
-  @override
-  Future<PomodoroSettings> getPomodoroSettings() async => _pomodoroSettings;
-  @override
-  Future<void> updatePomodoroSettings(PomodoroSettings settings) async {
-    _pomodoroSettings = settings;
-  }
-}

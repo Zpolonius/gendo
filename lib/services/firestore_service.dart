@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models.dart';
-import '../models/todo_list.dart'; // Husk denne
+import '../models/todo_list.dart';
 import '../repository.dart';
 
 class FirestoreService implements TaskRepository {
@@ -12,7 +12,49 @@ class FirestoreService implements TaskRepository {
   CollectionReference get _listsCollection => _db.collection('lists');
   DocumentReference get _userDoc => _db.collection('users').doc(_userId);
 
-  // --- LISTER ---
+  // --- INVITER BRUGER (HÅNDTERER BEGGE SCENARIER) ---
+  @override
+  Future<void> inviteUserByEmail(String listId, String email) async {
+    // 1. Tjek om brugeren findes i systemet
+    final userSnapshot = await _db.collection('users')
+        .where('email', isEqualTo: email)
+        .limit(1)
+        .get();
+
+    if (userSnapshot.docs.isNotEmpty) {
+      // SCENARIE 1: Brugeren findes -> Tilføj ID direkte
+      final userIdToInvite = userSnapshot.docs.first.id;
+      await _listsCollection.doc(listId).update({
+        'memberIds': FieldValue.arrayUnion([userIdToInvite])
+      });
+    } else {
+      // SCENARIE 2: Brugeren findes ikke -> Tilføj til pendingEmails
+      // Så fanger vi dem, når de opretter sig senere (via checkPendingInvites)
+      await _listsCollection.doc(listId).update({
+        'pendingEmails': FieldValue.arrayUnion([email])
+      });
+    }
+  }
+
+  // --- TJEK FOR VENTENDE INVITATIONER ---
+  @override
+  Future<void> checkPendingInvites(String email) async {
+    // Find alle lister, hvor min email står i 'pendingEmails'
+    final snapshot = await _listsCollection
+        .where('pendingEmails', arrayContains: email)
+        .get();
+
+    // For hver liste: "Claim" medlemskabet
+    for (var doc in snapshot.docs) {
+      await doc.reference.update({
+        'memberIds': FieldValue.arrayUnion([_userId]), // Tilføj mig som medlem
+        'pendingEmails': FieldValue.arrayRemove([email]) // Fjern min email fra ventelisten
+      });
+    }
+  }
+
+  // ... (Resten af metoderne er uændrede, men skal være her for at opfylde kontrakten) ...
+
   @override
   Future<List<TodoList>> getLists() async {
     final snapshot = await _listsCollection.where('memberIds', arrayContains: _userId).get();
@@ -33,39 +75,22 @@ class FirestoreService implements TaskRepository {
     final doc = await _listsCollection.doc(listId).get();
     if (doc.exists) {
       final data = doc.data() as Map<String, dynamic>;
-      if (data['ownerId'] == _userId) {
-        await _listsCollection.doc(listId).delete();
-      }
+      if (data['ownerId'] == _userId) await _listsCollection.doc(listId).delete();
     }
   }
 
   @override
-  Future<void> inviteUserByEmail(String listId, String email) async {
-    final userSnapshot = await _db.collection('users').where('email', isEqualTo: email).limit(1).get();
-    if (userSnapshot.docs.isNotEmpty) {
-      final userIdToInvite = userSnapshot.docs.first.id;
-      await _listsCollection.doc(listId).update({'memberIds': FieldValue.arrayUnion([userIdToInvite])});
-    }
-  }
+  Future<void> removeUserFromList(String listId, String userIdToRemove) async {}
 
-  @override
-  Future<void> removeUserFromList(String listId, String userIdToRemove) async {
-     // Implementer logik hvis nødvendigt
-  }
-
-  // --- TASKS (Med List ID) ---
   @override
   Future<List<TodoTask>> getTasks(String listId) async {
     final snapshot = await _listsCollection.doc(listId).collection('tasks').get();
-    return snapshot.docs.map((doc) {
-      var task = TodoTask.fromMap(doc.data());
-      return task.copyWith(listId: listId); 
-    }).toList();
+    return snapshot.docs.map((doc) => TodoTask.fromMap(doc.data()).copyWith(listId: listId)).toList();
   }
 
   @override
   Future<void> addTask(TodoTask task) async {
-    if (task.listId.isEmpty) return; // Fejlhåndtering
+    if (task.listId.isEmpty) return;
     await _listsCollection.doc(task.listId).collection('tasks').doc(task.id).set(task.toMap());
   }
 
@@ -80,7 +105,6 @@ class FirestoreService implements TaskRepository {
     await _listsCollection.doc(listId).collection('tasks').doc(taskId).delete();
   }
 
-  // --- ANDET ---
   @override
   Future<List<String>> getCategories() async {
     final doc = await _userDoc.get();
@@ -88,7 +112,7 @@ class FirestoreService implements TaskRepository {
       final data = doc.data() as Map<String, dynamic>;
       if (data.containsKey('categories')) return List<String>.from(data['categories']);
     }
-    return ['Generelt', 'Arbejde', 'Personlig', 'Studie', 'Dev', 'QA']; 
+    return ['Generelt', 'Arbejde', 'Personlig', 'Studie', 'Dev', 'QA'];
   }
 
   @override
