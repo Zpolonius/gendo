@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'models.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 abstract class TaskRepository {
   Future<List<TodoTask>> getTasks();
@@ -86,5 +87,65 @@ class MockTaskRepository implements TaskRepository {
     if (!_categories.contains(category)) {
       _categories.add(category);
     }
+  }
+}
+
+class FirestoreTaskRepository implements TaskRepository {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final String _userId;
+
+  FirestoreTaskRepository(this._userId);
+
+  CollectionReference<Map<String, dynamic>> get _tasksCollection =>
+      _firestore.collection('users').doc(_userId).collection('tasks');
+
+  @override
+  Future<List<TodoTask>> getTasks() async {
+    final snapshot = await _tasksCollection.get();
+    return snapshot.docs.map((doc) => TodoTask.fromMap(doc.data())).toList();
+  }
+
+  @override
+  Future<void> addTask(TodoTask task) async {
+    await _tasksCollection.doc(task.id).set(task.toMap());
+  }
+
+  @override
+  Future<void> updateTask(TodoTask task) async {
+    await _tasksCollection.doc(task.id).update(task.toMap());
+  }
+
+  @override
+  Future<void> deleteTask(String id) async {
+    await _tasksCollection.doc(id).delete();
+  }
+
+  @override
+  Future<List<String>> getCategories() async {
+    // For simplicity, we can store categories in a separate document or collection.
+    // Here, we'll just return a default list + any unique categories found in tasks.
+    // A more robust solution would be to have a 'categories' collection.
+    final snapshot = await _tasksCollection.get();
+    final tasks = snapshot.docs.map((doc) => TodoTask.fromMap(doc.data())).toList();
+    final taskCategories = tasks.map((t) => t.category).toSet();
+    
+    final defaultCategories = {
+      'Generelt',
+      'Arbejde',
+      'Personlig',
+      'Studie',
+      'Dev',
+      'QA',
+    };
+    
+    return {...defaultCategories, ...taskCategories}.toList();
+  }
+
+  @override
+  Future<void> addCategory(String category) async {
+    // In this simple implementation, adding a category doesn't need to do anything 
+    // explicit if we just derive them from tasks. 
+    // However, to persist unused categories, we'd need a separate collection.
+    // For now, we'll leave it as a no-op or implement a proper category store later.
   }
 }

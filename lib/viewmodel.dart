@@ -7,7 +7,7 @@ import 'repository.dart';
 enum TimerStatus { idle, working, finishedWork, onBreak }
 
 class AppViewModel extends ChangeNotifier {
-  final TaskRepository _repository;
+  TaskRepository _repository;
   
   // --- STATE: THEME ---
   bool _isDarkMode = false;
@@ -30,7 +30,12 @@ class AppViewModel extends ChangeNotifier {
   String? _selectedTaskId; 
 
   AppViewModel(this._repository) {
-    loadData(); // Ændret fra loadTasks til loadData
+    loadData();
+  }
+
+  void updateRepository(TaskRepository repository) {
+    _repository = repository;
+    loadData();
   }
 
   // Getters
