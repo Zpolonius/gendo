@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel.dart';
 import '../models.dart';
+import '../widgets/circular_time_picker.dart'; // HUSK AT OPRETTE DENNE FIL
 
 class PomodoroSettingsScreen extends StatefulWidget {
   const PomodoroSettingsScreen({super.key});
@@ -51,53 +52,74 @@ class _PomodoroSettingsScreenState extends State<PomodoroSettingsScreen> {
           )
         ],
       ),
-      body: ListView(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        children: [
-          const Text("TIMER VARIGHED", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-          const SizedBox(height: 20),
-          
-          // Work Duration Slider
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("Fokus tid", style: theme.textTheme.titleMedium),
-              Text("${_workDuration.round()} min", style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          Slider(
-            value: _workDuration,
-            min: 5,
-            max: 90,
-            divisions: 17, // 5 min step
-            label: "${_workDuration.round()} min",
-            onChanged: (val) => setState(() => _workDuration = val),
-          ),
-          
-          const SizedBox(height: 40),
-          const Text("PAUSER", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-          const SizedBox(height: 10),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            const Text("TIMER VARIGHED", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 30),
+            
+            // --- DET NYE DREJEHJUL ---
+            SizedBox(
+              height: 280,
+              width: 280,
+              child: CircularTimePicker(
+                value: _workDuration,
+                min: 5,  // Minimum 5 minutter
+                max: 60, // Maksimum 60 minutter (en hel omgang)
+                color: theme.colorScheme.primary,
+                onChanged: (newValue) {
+                  setState(() => _workDuration = newValue);
+                },
+              ),
+            ),
+            
+            const SizedBox(height: 10),
+            const Text("Drej for at indstille tiden", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 50),
+            
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text("PAUSER", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+            ),
+            const SizedBox(height: 10),
 
-          // Enable Breaks Switch
-          SwitchListTile(
-            title: const Text("Tillad Pauser"),
-            subtitle: const Text("Automatisk pause efter hver session"),
-            value: _enableBreaks,
-            onChanged: (val) => setState(() {
-              _enableBreaks = val;
-              if (!val) _enableLongBreaks = false; // Slå lang pause fra hvis pauser er slået fra
-            }),
-          ),
-
-          // Enable Long Breaks Switch
-          SwitchListTile(
-            title: const Text("Lange Pauser"),
-            subtitle: const Text("En længere pause efter 3 sessioner"),
-            value: _enableLongBreaks,
-            // Kun aktiv hvis pauser generelt er slået til
-            onChanged: _enableBreaks ? (val) => setState(() => _enableLongBreaks = val) : null, 
-          ),
-        ],
+            // Enable Breaks Switch
+            Card(
+              elevation: 0,
+              color: theme.colorScheme.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+              ),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    title: const Text("Tillad Pauser"),
+                    subtitle: const Text("Automatisk pause efter hver session"),
+                    value: _enableBreaks,
+                    activeColor: theme.colorScheme.primary,
+                    onChanged: (val) => setState(() {
+                      _enableBreaks = val;
+                      if (!val) _enableLongBreaks = false; 
+                    }),
+                  ),
+                  const Divider(height: 1, indent: 16, endIndent: 16),
+                  // Enable Long Breaks Switch
+                  SwitchListTile(
+                    title: const Text("Lange Pauser"),
+                    subtitle: const Text("En længere pause efter 3 sessioner"),
+                    value: _enableLongBreaks,
+                    activeColor: theme.colorScheme.primary,
+                    // Kun aktiv hvis pauser generelt er slået til
+                    onChanged: _enableBreaks ? (val) => setState(() => _enableLongBreaks = val) : null, 
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

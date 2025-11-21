@@ -14,6 +14,16 @@ class FirestoreService implements TaskRepository {
   // Vi gemmer indstillinger (tema, kategorier, pomodoro) direkte på bruger-dokumentet
   DocumentReference get _userDoc => _db.collection('users').doc(_userId);
 
+  // --- STANDARD KATEGORIER (Disse findes altid) ---
+  static const List<String> _defaultCategories = [
+    'Generelt',
+    'Arbejde',
+    'Personlig',
+    'Studie',
+    'Hobby',
+    'Haster',
+  ];
+
   // --- TASKS ---
 
   @override
@@ -44,29 +54,51 @@ class FirestoreService implements TaskRepository {
     }
   }
 
-  // --- CATEGORIES ---
+  // --- KATEGORIER (SMART MERGE) ---
 
   @override
   Future<List<String>> getCategories() async {
     try {
       final doc = await _userDoc.get();
+      List<String> customCategories = [];
+
+      // 1. Prøv at hente brugerens egne kategorier fra Firebase
       if (doc.exists && doc.data() != null) {
         final data = doc.data() as Map<String, dynamic>;
-        if (data.containsKey('categories')) {
-          return List<String>.from(data['categories']);
+        // Vi leder efter feltet 'customCategories' nu
+        if (data.containsKey('customCategories')) {
+          customCategories = List<String>.from(data['customCategories']);
+        }
+        // Bagudkompatibilitet: Hvis vi tidligere brugte 'categories', så tjek det også
+        else if (data.containsKey('categories')) {
+          customCategories = List<String>.from(data['categories']);
         }
       }
+
+      // 2. Flet Standard + Custom
+      // Vi bruger et Set for at fjerne dubletter automatisk
+      final combinedSet = {..._defaultCategories, ...customCategories};
+      
+      return combinedSet.toList();
+
     } catch (e) {
       print("Fejl ved hentning af kategorier: $e");
+      // Hvis nettet fejler, har vi i det mindste standard kategorierne!
+      return _defaultCategories; 
     }
-    // Default kategorier hvis intet findes
-    return ['Generelt', 'Arbejde', 'Personlig', 'Studie', 'Dev', 'QA']; 
   }
 
   @override
   Future<void> addCategory(String category) async {
+    // Vi tilføjer kun til 'customCategories' listen i databasen
+    // Standard kategorierne er hardcoded og skal ikke gemmes
+    
+    if (_defaultCategories.contains(category)) {
+      return; // Gør intet hvis det allerede er en standard kategori
+    }
+
     await _userDoc.set({
-      'categories': FieldValue.arrayUnion([category])
+      'customCategories': FieldValue.arrayUnion([category])
     }, SetOptions(merge: true));
   }
 
@@ -110,7 +142,7 @@ class FirestoreService implements TaskRepository {
     } catch (e) {
       print("Fejl ved hentning af indstillinger: $e");
     }
-    return PomodoroSettings(); // Returner default settings hvis intet gemt
+    return PomodoroSettings(); 
   }
 
   @override
