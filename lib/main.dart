@@ -5,23 +5,22 @@ import 'package:intl/intl.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// Sørg for at disse imports passer til din mappestruktur
+// Import af dine egne filer
 import 'models.dart';
 import 'repository.dart';
 import 'viewmodel.dart';
 import 'services/auth_service.dart';
 import 'services/firestore_service.dart';
-import 'screens/login_screen.dart'; // Eller hvor du har placeret login_screen.dart
-// import 'firebase_options.dart'; // AKTIVER DENNE LINJE, NÅR DU HAR KØRT FLUTTERFIRE CONFIGURE
+import 'screens/login_screen.dart'; 
+import 'widgets/app_drawer.dart'; // Import af den nye drawer
+
+// import 'firebase_options.dart'; // HUSK AT AKTIVERE DENNE HVIS DU HAR GENERERET DEN
 
 void main() async {
-  // 1. Sikr at Flutter bindinger er klar før Firebase init
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 2. Initialiser Firebase
-  // HUSK: Du skal køre 'flutterfire configure' i terminalen for at få firebase_options.dart
-  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform); 
-  // Hvis du ikke har firebase_options endnu, kan du prøve denne midlertidigt (men options anbefales):
+  // Hvis du har firebase_options.dart, brug:
+  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await Firebase.initializeApp(); 
 
   runApp(const GenDoApp());
@@ -34,29 +33,24 @@ class GenDoApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // A. Gør AuthService tilgængelig
+        // 1. Auth Service
         Provider<AuthService>(
           create: (_) => AuthService(),
         ),
         
-        // B. Lyt på brugerens login-status (Stream)
+        // 2. User Stream (Lytter på om man er logget ind)
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().user,
           initialData: null,
         ),
 
-        // C. Opret ViewModel, men gør den afhængig af brugeren (ProxyProvider)
+        // 3. ViewModel (Skifter mellem Mock og Firestore afhængig af login)
         ChangeNotifierProxyProvider<User?, AppViewModel>(
-          create: (_) => AppViewModel(MockTaskRepository()), // Start med Mock
+          create: (_) => AppViewModel(MockTaskRepository()),
           update: (_, user, viewModel) {
-            // Denne funktion kaldes hver gang 'user' ændrer sig (login/logout)
             if (user != null) {
-              // Hvis logget ind -> Brug Firestore med brugerens ID
-              print("Bruger logget ind: ${user.email} - Skifter til Firestore");
               viewModel!.updateRepository(FirestoreService(user.uid));
             } else {
-              // Hvis logget ud -> Brug Mock (eller tøm listen)
-              print("Bruger logget ud - Skifter til Mock");
               viewModel!.updateRepository(MockTaskRepository());
             }
             return viewModel;
@@ -76,7 +70,6 @@ class GenDoMaterialApp extends StatelessWidget {
     final primaryColor = const Color(0xFF6C63FF);
     final textTheme = GoogleFonts.poppinsTextTheme();
 
-    // Vi flytter Theme logic herind for at holde GenDoApp ren
     return MaterialApp(
       title: 'GenDo',
       debugShowCheckedModeBanner: false,
@@ -127,28 +120,18 @@ class GenDoMaterialApp extends StatelessWidget {
         ),
       ),
       
-      // Her bruger vi en AuthWrapper til at styre hvilken skærm der vises
+      // Styrer hvilken skærm der vises (Login eller Main)
       home: const AuthWrapper(),
     );
   }
 }
 
-// --- AUTH WRAPPER ---
-// Denne widget tjekker om vi har en bruger og vælger skærm
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<User?>(); // Lytter på StreamProvideren ovenfor
-    final vm = context.watch<AppViewModel>(); // Vi lytter også til VM for theme
-
-    // VIGTIGT: Sæt themeMode baseret på VM
-    // Vi er nødt til at pakke MaterialApp ind i en builder eller flytte AuthWrapper ned,
-    // men for simpelhedens skyld styrer vi bare navigationen her.
-    // Bemærk: ThemeMode styring fra main er lidt tricky med denne struktur, 
-    // men lad os fokusere på Auth først.
-
+    final user = context.watch<User?>();
     if (user != null) {
       return const MainScreen();
     } else {
@@ -177,7 +160,6 @@ class _MainScreenState extends State<MainScreen> {
     final vm = context.watch<AppViewModel>();
     final isDark = vm.isDarkMode;
     final theme = Theme.of(context);
-    final authService = context.read<AuthService>(); // Til logout knap
 
     final List<Widget> screens = [
       const PomodoroScreen(),
@@ -186,6 +168,9 @@ class _MainScreenState extends State<MainScreen> {
     ];
 
     return Scaffold(
+      // Her tilføjer vi den nye Drawer!
+      drawer: const AppDrawer(),
+      
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -202,22 +187,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () => vm.toggleTheme(!isDark),
-          ),
-          // LOGOUT KNAP
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: "Log ud",
-            onPressed: () async {
-              await authService.signOut();
-              // AuthWrapper vil automatisk opdage at user er null og vise LoginScreen
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
+        // Vi har fjernet 'actions' herfra, da log-ud og dark mode nu er i drawer
       ),
       body: SafeArea(child: IndexedStack(index: _currentIndex, children: screens)),
       bottomNavigationBar: NavigationBar(
@@ -236,47 +206,35 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-// --- WIDGET: KATEGORI SELECTOR ---
+// --- WIDGETS START ---
+
 class _CategorySelector extends StatefulWidget {
   final String initialCategory;
   final Function(String) onChanged;
-
   const _CategorySelector({required this.initialCategory, required this.onChanged});
-
   @override
   State<_CategorySelector> createState() => _CategorySelectorState();
 }
 
 class _CategorySelectorState extends State<_CategorySelector> {
   late String _selectedCategory;
-
   @override
   void initState() {
     super.initState();
     _selectedCategory = widget.initialCategory;
   }
-
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<AppViewModel>();
     final theme = Theme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     if (!vm.categories.contains(_selectedCategory) && vm.categories.isNotEmpty) {
        _selectedCategory = vm.categories.first;
     }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Kategori", 
-          style: TextStyle(
-            fontSize: 12, 
-            fontWeight: FontWeight.bold, 
-            color: theme.colorScheme.onSurface.withOpacity(0.6)
-          )
-        ),
+        Text("Kategori", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface.withOpacity(0.6))),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8.0,
@@ -295,16 +253,8 @@ class _CategorySelectorState extends State<_CategorySelector> {
                 },
                 selectedColor: theme.colorScheme.primary,
                 backgroundColor: isDark ? Colors.white10 : Colors.grey[100],
-                labelStyle: TextStyle(
-                  color: isSelected ? Colors.white : theme.colorScheme.onSurface,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(
-                    color: isSelected ? Colors.transparent : (isDark ? Colors.white24 : Colors.grey[300]!),
-                  ),
-                ),
+                labelStyle: TextStyle(color: isSelected ? Colors.white : theme.colorScheme.onSurface, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Colors.transparent : (isDark ? Colors.white24 : Colors.grey[300]!))),
                 showCheckmark: false,
               );
             }),
@@ -312,9 +262,7 @@ class _CategorySelectorState extends State<_CategorySelector> {
               label: const Icon(Icons.add, size: 18),
               onPressed: () => _showAddCategoryDialog(context, vm),
               backgroundColor: isDark ? Colors.white10 : Colors.white,
-              shape: CircleBorder(
-                side: BorderSide(color: isDark ? Colors.white24 : Colors.grey[300]!),
-              ),
+              shape: CircleBorder(side: BorderSide(color: isDark ? Colors.white24 : Colors.grey[300]!)),
               padding: const EdgeInsets.all(8),
             ),
           ],
@@ -322,57 +270,37 @@ class _CategorySelectorState extends State<_CategorySelector> {
       ],
     );
   }
-
   void _showAddCategoryDialog(BuildContext context, AppViewModel vm) {
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Ny Kategori"),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: "Navn på kategori"),
-        ),
+        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(hintText: "Navn på kategori")),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                await vm.addNewCategory(controller.text);
-                setState(() => _selectedCategory = controller.text);
-                widget.onChanged(controller.text);
-                if (mounted) Navigator.pop(context);
-              }
-            },
-            child: const Text("Opret"),
-          ),
+          ElevatedButton(onPressed: () async { if (controller.text.isNotEmpty) { await vm.addNewCategory(controller.text); setState(() => _selectedCategory = controller.text); widget.onChanged(controller.text); if (mounted) Navigator.pop(context); }}, child: const Text("Opret")),
         ],
       ),
     );
   }
 }
 
-// --- NY WIDGET: PRIORITET SELECTOR ---
 class _PrioritySelector extends StatefulWidget {
   final TaskPriority initialPriority;
   final Function(TaskPriority) onChanged;
-
   const _PrioritySelector({required this.initialPriority, required this.onChanged});
-
   @override
   State<_PrioritySelector> createState() => _PrioritySelectorState();
 }
 
 class _PrioritySelectorState extends State<_PrioritySelector> {
   late TaskPriority _selectedPriority;
-
   @override
   void initState() {
     super.initState();
     _selectedPriority = widget.initialPriority;
   }
-
   Color _getColor(TaskPriority p) {
     switch(p) {
       case TaskPriority.high: return Colors.redAccent;
@@ -380,7 +308,6 @@ class _PrioritySelectorState extends State<_PrioritySelector> {
       case TaskPriority.low: return Colors.greenAccent;
     }
   }
-  
   String _getLabel(TaskPriority p) {
      switch(p) {
       case TaskPriority.high: return "Høj";
@@ -388,20 +315,12 @@ class _PrioritySelectorState extends State<_PrioritySelector> {
       case TaskPriority.low: return "Lav";
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Prioritet", 
-          style: TextStyle(
-            fontSize: 12, 
-            fontWeight: FontWeight.bold, 
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)
-          )
-        ),
+        Text("Prioritet", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
         const SizedBox(height: 8),
         Row(
           children: TaskPriority.values.map((priority) {
@@ -412,17 +331,9 @@ class _PrioritySelectorState extends State<_PrioritySelector> {
               child: ChoiceChip(
                 label: Text(_getLabel(priority)),
                 selected: isSelected,
-                onSelected: (selected) {
-                  if (selected) {
-                    setState(() => _selectedPriority = priority);
-                    widget.onChanged(priority);
-                  }
-                },
+                onSelected: (selected) { if (selected) { setState(() => _selectedPriority = priority); widget.onChanged(priority); } },
                 selectedColor: color.withOpacity(0.2),
-                labelStyle: TextStyle(
-                  color: isSelected ? color : Colors.grey,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
-                ),
+                labelStyle: TextStyle(color: isSelected ? color : Colors.grey, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
                 side: BorderSide(color: isSelected ? color : Colors.grey.shade300),
                 backgroundColor: Colors.transparent,
                 showCheckmark: false,
@@ -440,73 +351,37 @@ class _PrioritySelectorState extends State<_PrioritySelector> {
 class _DateSelector extends StatelessWidget {
   final DateTime? selectedDate;
   final Function(DateTime?) onDateChanged;
-
   const _DateSelector({required this.selectedDate, required this.onDateChanged});
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateFormatter = DateFormat('dd/MM/yyyy');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Deadline (Valgfri)", 
-          style: TextStyle(
-            fontSize: 12, 
-            fontWeight: FontWeight.bold, 
-            color: theme.colorScheme.onSurface.withOpacity(0.6)
-          )
-        ),
+        Text("Deadline (Valgfri)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface.withOpacity(0.6))),
         const SizedBox(height: 8),
         Row(
           children: [
             InkWell(
               onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: selectedDate ?? DateTime.now(),
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-                );
-                if (picked != null) {
-                  onDateChanged(picked);
-                }
+                final picked = await showDatePicker(context: context, initialDate: selectedDate ?? DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365 * 5)));
+                if (picked != null) { onDateChanged(picked); }
               },
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  border: Border.all(color: isDark ? Colors.white24 : Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+                decoration: BoxDecoration(border: Border.all(color: isDark ? Colors.white24 : Colors.grey.shade400), borderRadius: BorderRadius.circular(12)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.calendar_today, size: 16, color: theme.colorScheme.primary),
                     const SizedBox(width: 8),
-                    Text(
-                      selectedDate == null ? "Vælg dato" : dateFormatter.format(selectedDate!),
-                      style: TextStyle(
-                        color: selectedDate == null 
-                            ? theme.colorScheme.onSurface.withOpacity(0.5) 
-                            : theme.colorScheme.onSurface,
-                      ),
-                    ),
+                    Text(selectedDate == null ? "Vælg dato" : dateFormatter.format(selectedDate!), style: TextStyle(color: selectedDate == null ? theme.colorScheme.onSurface.withOpacity(0.5) : theme.colorScheme.onSurface)),
                   ],
                 ),
               ),
             ),
-            if (selectedDate != null) ...[
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.clear, size: 20),
-                onPressed: () => onDateChanged(null),
-                tooltip: "Fjern dato",
-              )
-            ]
+            if (selectedDate != null) ...[ const SizedBox(width: 8), IconButton(icon: const Icon(Icons.clear, size: 20), onPressed: () => onDateChanged(null), tooltip: "Fjern dato") ]
           ],
         ),
       ],
@@ -514,7 +389,6 @@ class _DateSelector extends StatelessWidget {
   }
 }
 
-// --- POMODORO SCREEN ---
 class PomodoroScreen extends StatefulWidget {
   const PomodoroScreen({super.key});
   @override
@@ -524,116 +398,43 @@ class PomodoroScreen extends StatefulWidget {
 class _PomodoroScreenState extends State<PomodoroScreen> {
   late AppViewModel _vm;
   bool _isDialogShowing = false;
-
   @override
-  void initState() {
-    super.initState();
-    _vm = Provider.of<AppViewModel>(context, listen: false);
-    _vm.addListener(_onVmChanged);
-  }
-
+  void initState() { super.initState(); _vm = Provider.of<AppViewModel>(context, listen: false); _vm.addListener(_onVmChanged); }
   @override
-  void dispose() {
-    _vm.removeListener(_onVmChanged);
-    super.dispose();
-  }
-
+  void dispose() { _vm.removeListener(_onVmChanged); super.dispose(); }
   void _onVmChanged() {
     if (_vm.timerStatus == TimerStatus.finishedWork && !_isDialogShowing) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_isDialogShowing) {
-          _showCompletionDialog(context, _vm);
-        }
-      });
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && !_isDialogShowing) { _showCompletionDialog(context, _vm); } });
     }
   }
-
   void _showCompletionDialog(BuildContext context, AppViewModel vm) {
     setState(() => _isDialogShowing = true);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
+    showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(
         title: const Text("Godt gået!"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Tiden er gået."),
-            const SizedBox(height: 10),
-            if (vm.selectedTaskId != null)
-              Text("Blev du færdig med '${vm.selectedTaskObj?.title}'?", style: const TextStyle(fontWeight: FontWeight.bold)),
-            if (vm.selectedTaskId == null)
-               const Text("Er du klar til en pause?"),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              vm.completeWorkSession(false);
-            },
-            child: const Text("Nej, ikke endnu"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              vm.completeWorkSession(true);
-            },
-            child: const Text("Ja, færdig!"),
-          ),
-        ],
+        content: Column(mainAxisSize: MainAxisSize.min, children: [const Text("Tiden er gået."), const SizedBox(height: 10), if (vm.selectedTaskId != null) Text("Blev du færdig med '${vm.selectedTaskObj?.title}'?", style: const TextStyle(fontWeight: FontWeight.bold)), if (vm.selectedTaskId == null) const Text("Er du klar til en pause?")]),
+        actions: [TextButton(onPressed: () { Navigator.pop(ctx); vm.completeWorkSession(false); }, child: const Text("Nej, ikke endnu")), ElevatedButton(onPressed: () { Navigator.pop(ctx); vm.completeWorkSession(true); }, child: const Text("Ja, færdig!"))],
       ),
-    ).then((_) {
-      if (mounted) setState(() => _isDialogShowing = false);
-    });
+    ).then((_) { if (mounted) setState(() => _isDialogShowing = false); });
   }
-
   void _showCustomTimeDialog(BuildContext context, AppViewModel vm) {
     final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
+    showDialog(context: context, builder: (_) => AlertDialog(
         title: const Text("Sæt tid (minutter)"),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: "F.eks. 60", suffixText: "min"),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
-          ElevatedButton(onPressed: () {
-            final int? minutes = int.tryParse(controller.text);
-            if (minutes != null && minutes > 0) {
-              vm.setDuration(minutes);
-              Navigator.pop(context);
-            }
-          }, child: const Text("Sæt")),
-        ],
+        content: TextField(controller: controller, keyboardType: TextInputType.number, autofocus: true, decoration: const InputDecoration(hintText: "F.eks. 60", suffixText: "min")),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")), ElevatedButton(onPressed: () { final int? minutes = int.tryParse(controller.text); if (minutes != null && minutes > 0) { vm.setDuration(minutes); Navigator.pop(context); } }, child: const Text("Sæt"))],
       ),
     );
   }
-
-  String _formatTime(int seconds) {
-    final minutes = (seconds / 60).floor();
-    final remSeconds = seconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${remSeconds.toString().padLeft(2, '0')}';
-  }
-
+  String _formatTime(int seconds) { final minutes = (seconds / 60).floor(); final remSeconds = seconds % 60; return '${minutes.toString().padLeft(2, '0')}:${remSeconds.toString().padLeft(2, '0')}'; }
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<AppViewModel>();
     final theme = Theme.of(context);
     final isDark = vm.isDarkMode;
-
     final currentMinutes = vm.pomodoroDurationTotal ~/ 60;
     final isCustomSelected = ![10, 20, 30].contains(currentMinutes);
-    
     final timerColor = vm.isOnBreak ? Colors.green[400] : theme.colorScheme.primary;
-    final statusText = vm.isOnBreak 
-        ? (vm.pomodoroDurationTotal > 600 ? "LANG PAUSE" : "PAUSE")
-        : "FOKUS";
-
+    final statusText = vm.isOnBreak ? (vm.pomodoroDurationTotal > 600 ? "LANG PAUSE" : "PAUSE") : "FOKUS";
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -641,165 +442,39 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
           if (!vm.isTimerRunning && !vm.isOnBreak) ...[
             Text("VÆLG VARIGHED", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
             const SizedBox(height: 15),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _TimeChip(label: "10", isSelected: currentMinutes == 10, onTap: () => vm.setDuration(10)),
-                const SizedBox(width: 12),
-                _TimeChip(label: "20", isSelected: currentMinutes == 20, onTap: () => vm.setDuration(20)),
-                const SizedBox(width: 12),
-                _TimeChip(label: "30", isSelected: currentMinutes == 30, onTap: () => vm.setDuration(30)),
-                const SizedBox(width: 12),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                _TimeChip(label: "10", isSelected: currentMinutes == 10, onTap: () => vm.setDuration(10)), const SizedBox(width: 12),
+                _TimeChip(label: "20", isSelected: currentMinutes == 20, onTap: () => vm.setDuration(20)), const SizedBox(width: 12),
+                _TimeChip(label: "30", isSelected: currentMinutes == 30, onTap: () => vm.setDuration(30)), const SizedBox(width: 12),
                 _TimeChip(label: "Custom", isSelected: isCustomSelected, onTap: () => _showCustomTimeDialog(context, vm)),
               ],
             ),
             const SizedBox(height: 40),
           ],
-
-          if (vm.isOnBreak) ...[
-             Container(
-               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-               decoration: BoxDecoration(
-                 color: Colors.green.withOpacity(0.1),
-                 borderRadius: BorderRadius.circular(20),
-               ),
-               child: Text(statusText, style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-             ),
-             const SizedBox(height: 20),
-          ],
-
-          SizedBox(
-            height: 280,
-            width: 280,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CircularProgressIndicator(
-                  value: vm.progress,
-                  strokeWidth: 18,
-                  backgroundColor: isDark ? Colors.white10 : Colors.grey[200],
-                  valueColor: AlwaysStoppedAnimation<Color>(timerColor!),
-                  strokeCap: StrokeCap.round,
-                ),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _formatTime(vm.pomodoroTimeLeft),
-                      style: GoogleFonts.roboto(
-                        fontSize: 56, 
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87
-                      ),
-                    ),
+          if (vm.isOnBreak) ...[ Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: Text(statusText, style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, letterSpacing: 1.5))), const SizedBox(height: 20) ],
+          SizedBox(height: 280, width: 280, child: Stack(fit: StackFit.expand, children: [
+                CircularProgressIndicator(value: vm.progress, strokeWidth: 18, backgroundColor: isDark ? Colors.white10 : Colors.grey[200], valueColor: AlwaysStoppedAnimation<Color>(timerColor!), strokeCap: StrokeCap.round),
+                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(_formatTime(vm.pomodoroTimeLeft), style: GoogleFonts.roboto(fontSize: 56, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
                     const SizedBox(height: 8),
-                    if (!vm.isOnBreak && vm.selectedTaskObj != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                        child: Text(vm.selectedTaskObj!.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: theme.colorScheme.primary, fontWeight: FontWeight.w600)),
-                      )
-                    else if (vm.isOnBreak)
-                       Text("Træk vejret dybt...", style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.w500)),
-                    if (!vm.isOnBreak && vm.selectedTaskObj == null)
-                      Text("Frit fokus", style: TextStyle(color: Colors.grey[500])),
+                    if (!vm.isOnBreak && vm.selectedTaskObj != null) Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: Text(vm.selectedTaskObj!.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: theme.colorScheme.primary, fontWeight: FontWeight.w600)))
+                    else if (vm.isOnBreak) Text("Træk vejret dybt...", style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.w500)),
+                    if (!vm.isOnBreak && vm.selectedTaskObj == null) Text("Frit fokus", style: TextStyle(color: Colors.grey[500])),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 40),
-
-          if (!vm.isTimerRunning && !vm.isOnBreak)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade200),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: vm.selectedTaskId,
-                  isExpanded: true,
-                  dropdownColor: theme.colorScheme.surface,
-                  hint: Text("Vælg en opgave at fokusere på", style: TextStyle(color: Colors.grey[500])),
-                  items: [
-                    DropdownMenuItem(value: null, child: Text("Ingen specifik opgave", style: TextStyle(color: theme.colorScheme.onSurface))),
-                    ...vm.tasks.where((t) => !t.isCompleted).map((task) => DropdownMenuItem(value: task.id, child: Text(task.title, style: TextStyle(color: theme.colorScheme.onSurface)))).toList(),
-                  ],
-                  onChanged: (id) => vm.setSelectedTask(id),
-                ),
-              ),
-            ),
-
+          if (!vm.isTimerRunning && !vm.isOnBreak) Container(padding: const EdgeInsets.symmetric(horizontal: 16), decoration: BoxDecoration(color: theme.colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade200)), child: DropdownButtonHideUnderline(child: DropdownButton<String>(value: vm.selectedTaskId, isExpanded: true, dropdownColor: theme.colorScheme.surface, hint: Text("Vælg en opgave at fokusere på", style: TextStyle(color: Colors.grey[500])), items: [DropdownMenuItem(value: null, child: Text("Ingen specifik opgave", style: TextStyle(color: theme.colorScheme.onSurface))), ...vm.tasks.where((t) => !t.isCompleted).map((task) => DropdownMenuItem(value: task.id, child: Text(task.title, style: TextStyle(color: theme.colorScheme.onSurface)))).toList()], onChanged: (id) => vm.setSelectedTask(id)))),
           const SizedBox(height: 30),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (!vm.isOnBreak)
-                FloatingActionButton.large(
-                  heroTag: 'timer_control',
-                  onPressed: vm.isTimerRunning ? vm.stopTimer : vm.startTimer,
-                  backgroundColor: vm.isTimerRunning ? Colors.orangeAccent : theme.colorScheme.primary,
-                  elevation: 5,
-                  child: Icon(vm.isTimerRunning ? Icons.pause : Icons.play_arrow_rounded, color: Colors.white, size: 40),
-                ),
-              
-              if (vm.isOnBreak)
-                ElevatedButton.icon(
-                  onPressed: vm.skipBreak,
-                  icon: const Icon(Icons.skip_next),
-                  label: const Text("Luk Pause"),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.green[700],
-                  ),
-                ),
-
-              if (!vm.isOnBreak) ...[
-                const SizedBox(width: 20),
-                FloatingActionButton(
-                  heroTag: 'timer_reset',
-                  onPressed: vm.resetTimer,
-                  backgroundColor: theme.colorScheme.surface,
-                  elevation: 2,
-                  child: Icon(Icons.refresh_rounded, color: theme.colorScheme.onSurface),
-                ),
-              ]
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              if (!vm.isOnBreak) FloatingActionButton.large(heroTag: 'timer_control', onPressed: vm.isTimerRunning ? vm.stopTimer : vm.startTimer, backgroundColor: vm.isTimerRunning ? Colors.orangeAccent : theme.colorScheme.primary, elevation: 5, child: Icon(vm.isTimerRunning ? Icons.pause : Icons.play_arrow_rounded, color: Colors.white, size: 40)),
+              if (vm.isOnBreak) ElevatedButton.icon(onPressed: vm.skipBreak, icon: const Icon(Icons.skip_next), label: const Text("Luk Pause"), style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16), backgroundColor: Colors.white, foregroundColor: Colors.green[700])),
+              if (!vm.isOnBreak) ...[ const SizedBox(width: 20), FloatingActionButton(heroTag: 'timer_reset', onPressed: vm.resetTimer, backgroundColor: theme.colorScheme.surface, elevation: 2, child: Icon(Icons.refresh_rounded, color: theme.colorScheme.onSurface)) ]
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _TimeChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  const _TimeChip({required this.label, required this.isSelected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? Colors.transparent : (isDark ? Colors.white12 : Colors.grey.shade200)),
-          boxShadow: isSelected ? [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))] : [],
-        ),
-        child: Text(label, style: TextStyle(color: isSelected ? Colors.white : theme.colorScheme.onSurface, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -813,59 +488,17 @@ class GenUiCenterScreen extends StatefulWidget {
 
 class _GenUiCenterScreenState extends State<GenUiCenterScreen> {
   final TextEditingController _controller = TextEditingController();
-
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<AppViewModel>();
     final theme = Theme.of(context);
     final isDark = vm.isDarkMode;
-
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image.asset('assets/gendo_logo.png', height: 80),
-          const SizedBox(height: 20),
-          Text("Hvad vil du opnå?", style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text("Beskriv dit mål, så nedbryder AI det til handlinger.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[500])),
-          const SizedBox(height: 30),
-          TextField(
-            controller: _controller,
-            style: TextStyle(color: theme.colorScheme.onSurface),
-            decoration: InputDecoration(
-              hintText: "F.eks. 'Lær at spille guitar'",
-              filled: true,
-              fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.all(20),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 55,
-            child: ElevatedButton(
-              onPressed: vm.isLoading ? null : () {
-                if (_controller.text.isNotEmpty) {
-                  vm.generatePlanFromAI(_controller.text);
-                  _controller.clear();
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Plan genereret!")));
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 4,
-                shadowColor: theme.colorScheme.primary.withOpacity(0.4),
-              ),
-              child: vm.isLoading 
-                ? const CircularProgressIndicator(color: Colors.white) 
-                : const Text("Generer Plan", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
-          )
+    return Padding(padding: const EdgeInsets.all(24.0), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Image.asset('assets/gendo_logo.png', height: 80), const SizedBox(height: 20),
+          Text("Hvad vil du opnå?", style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 8),
+          Text("Beskriv dit mål, så nedbryder AI det til handlinger.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[500])), const SizedBox(height: 30),
+          TextField(controller: _controller, style: TextStyle(color: theme.colorScheme.onSurface), decoration: InputDecoration(hintText: "F.eks. 'Lær at spille guitar'", filled: true, fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(20))), const SizedBox(height: 20),
+          SizedBox(width: double.infinity, height: 55, child: ElevatedButton(onPressed: vm.isLoading ? null : () { if (_controller.text.isNotEmpty) { vm.generatePlanFromAI(_controller.text); _controller.clear(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Plan genereret!"))); } }, style: ElevatedButton.styleFrom(backgroundColor: theme.colorScheme.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 4, shadowColor: theme.colorScheme.primary.withOpacity(0.4)), child: vm.isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Generer Plan", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)))),
         ],
       ),
     );
@@ -873,130 +506,41 @@ class _GenUiCenterScreenState extends State<GenUiCenterScreen> {
 }
 
 class TodoListScreen extends StatelessWidget {
-  final Function(int) onSwitchTab; 
-  
+  final Function(int) onSwitchTab;
   const TodoListScreen({super.key, required this.onSwitchTab});
-
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<AppViewModel>();
     final theme = Theme.of(context);
-
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'add_task_btn',
-        onPressed: () => _showAddDialog(context, vm),
-        backgroundColor: theme.colorScheme.primary,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-      body: vm.tasks.isEmpty 
-        ? Center(child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.checklist_rtl_rounded, size: 64, color: Colors.grey[300]),
-              const SizedBox(height: 16),
-              Text("Ingen opgaver endnu", style: TextStyle(color: Colors.grey[500])),
-            ],
-          ))
-        : ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: vm.tasks.length,
-            itemBuilder: (ctx, i) {
-              final task = vm.tasks[i];
-              return _TaskCard(
-                task: task, 
-                onTap: () => _openTaskDetail(context, task, vm),
-                onToggle: () => vm.toggleTask(task.id),
-                onDelete: () => vm.deleteTask(task.id),
-              );
-            },
-          ),
+      floatingActionButton: FloatingActionButton(heroTag: 'add_task_btn', onPressed: () => _showAddDialog(context, vm), backgroundColor: theme.colorScheme.primary, child: const Icon(Icons.add, color: Colors.white)),
+      body: vm.tasks.isEmpty ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.checklist_rtl_rounded, size: 64, color: Colors.grey[300]), const SizedBox(height: 16), Text("Ingen opgaver endnu", style: TextStyle(color: Colors.grey[500]))]))
+        : ListView.builder(padding: const EdgeInsets.all(16), itemCount: vm.tasks.length, itemBuilder: (ctx, i) { final task = vm.tasks[i]; return _TaskCard(task: task, onTap: () => _openTaskDetail(context, task, vm), onToggle: () => vm.toggleTask(task.id), onDelete: () => vm.deleteTask(task.id)); }),
     );
   }
-
   void _openTaskDetail(BuildContext context, TodoTask task, AppViewModel vm) {
-    Navigator.push(
-      context, 
-      MaterialPageRoute(
-        builder: (_) => TaskDetailScreen(
-          taskId: task.id, 
-          initialTask: task,
-          onStartTask: () {
-            vm.setSelectedTask(task.id);
-            Navigator.pop(context);
-            onSwitchTab(0); 
-          },
-        )
-      )
-    );
+    Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailScreen(taskId: task.id, initialTask: task, onStartTask: () { vm.setSelectedTask(task.id); Navigator.pop(context); onSwitchTab(0); })));
   }
-
   void _showAddDialog(BuildContext context, AppViewModel vm) {
     final titleController = TextEditingController();
     final descController = TextEditingController();
     String selectedCategory = 'Generelt';
     DateTime? selectedDate;
     TaskPriority selectedPriority = TaskPriority.medium;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder( 
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text("Ny Opgave"),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: titleController, 
-                    autofocus: true,
-                    decoration: const InputDecoration(labelText: "Titel", hintText: "Hvad skal laves?"),
-                  ),
-                  const SizedBox(height: 15),
-                  _CategorySelector(
-                    initialCategory: selectedCategory,
-                    onChanged: (val) => selectedCategory = val,
-                  ),
-                  const SizedBox(height: 15),
-                  _PrioritySelector(
-                    initialPriority: selectedPriority,
-                    onChanged: (val) => setState(() => selectedPriority = val),
-                  ),
-                  const SizedBox(height: 15),
-                  _DateSelector(
-                    selectedDate: selectedDate,
-                    onDateChanged: (date) => setState(() => selectedDate = date),
-                  ),
-                  const SizedBox(height: 15),
-                  TextField(
-                    controller: descController,
-                    decoration: const InputDecoration(labelText: "Noter/Beskrivelse"),
-                    maxLines: 3,
-                  ),
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(title: const Text("Ny Opgave"), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  TextField(controller: titleController, autofocus: true, decoration: const InputDecoration(labelText: "Titel", hintText: "Hvad skal laves?")), const SizedBox(height: 15),
+                  _CategorySelector(initialCategory: selectedCategory, onChanged: (val) => selectedCategory = val), const SizedBox(height: 15),
+                  _PrioritySelector(initialPriority: selectedPriority, onChanged: (val) => setState(() => selectedPriority = val)), const SizedBox(height: 15),
+                  _DateSelector(selectedDate: selectedDate, onDateChanged: (date) => setState(() => selectedDate = date)), const SizedBox(height: 15),
+                  TextField(controller: descController, decoration: const InputDecoration(labelText: "Noter/Beskrivelse"), maxLines: 3),
                 ],
               ),
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
-              ElevatedButton(onPressed: () {
-                if (titleController.text.isNotEmpty) {
-                  vm.addTask(
-                    titleController.text,
-                    category: selectedCategory,
-                    description: descController.text,
-                    dueDate: selectedDate, 
-                    priority: selectedPriority,
-                  );
-                  Navigator.pop(context);
-                }
-              }, child: const Text("Tilføj")),
-            ],
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")), ElevatedButton(onPressed: () { if (titleController.text.isNotEmpty) { vm.addTask(titleController.text, category: selectedCategory, description: descController.text, dueDate: selectedDate, priority: selectedPriority); Navigator.pop(context); } }, child: const Text("Tilføj"))],
           );
-        }
-      ),
+        }),
     );
   }
 }
@@ -1006,331 +550,99 @@ class _TaskCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
-
-  const _TaskCard({
-    required this.task, 
-    required this.onTap, 
-    required this.onToggle, 
-    required this.onDelete
-  });
-
-  Color _getPriorityColor(TaskPriority p) {
-    switch(p) {
-      case TaskPriority.high: return Colors.redAccent;
-      case TaskPriority.medium: return Colors.orangeAccent;
-      case TaskPriority.low: return Colors.greenAccent;
-    }
-  }
-
+  const _TaskCard({required this.task, required this.onTap, required this.onToggle, required this.onDelete});
+  Color _getPriorityColor(TaskPriority p) { switch(p) { case TaskPriority.high: return Colors.redAccent; case TaskPriority.medium: return Colors.orangeAccent; case TaskPriority.low: return Colors.greenAccent; } }
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateFormatter = DateFormat('dd/MM');
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Hero(
-        tag: 'task_${task.id}',
-        child: Material(
-          type: MaterialType.transparency,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? Colors.white10 : Colors.transparent),
-              boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              leading: IconButton(
-                icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined),
-                color: task.isCompleted ? Colors.green : Colors.grey,
-                onPressed: onToggle,
-              ),
-              title: Text(
-                task.title, 
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: task.isCompleted ? Colors.grey : theme.colorScheme.onSurface,
-                  decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                )
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: _getPriorityColor(task.priority).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          task.priority.name.toUpperCase(),
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _getPriorityColor(task.priority)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(task.category, style: TextStyle(fontSize: 12, color: theme.colorScheme.primary.withOpacity(0.7))),
-                      if (task.dueDate != null) ...[
-                        const Spacer(),
-                        Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
-                        const SizedBox(width: 4),
-                        Text(
-                          dateFormatter.format(task.dueDate!),
-                          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                        ),
-                      ]
-                    ],
-                  ),
-                ],
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
-                onPressed: onDelete,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    return GestureDetector(onTap: onTap, child: Hero(tag: 'task_${task.id}', child: Material(type: MaterialType.transparency, child: Container(margin: const EdgeInsets.only(bottom: 12), decoration: BoxDecoration(color: theme.colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.white10 : Colors.transparent), boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))]), child: ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), leading: IconButton(icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined), color: task.isCompleted ? Colors.green : Colors.grey, onPressed: onToggle), title: Text(task.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: task.isCompleted ? Colors.grey : theme.colorScheme.onSurface, decoration: task.isCompleted ? TextDecoration.lineThrough : null)), subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SizedBox(height: 4), Row(children: [Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: _getPriorityColor(task.priority).withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: Text(task.priority.name.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _getPriorityColor(task.priority)))), const SizedBox(width: 8), Text(task.category, style: TextStyle(fontSize: 12, color: theme.colorScheme.primary.withOpacity(0.7))), if (task.dueDate != null) ...[const Spacer(), Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]), const SizedBox(width: 4), Text(dateFormatter.format(task.dueDate!), style: TextStyle(fontSize: 12, color: Colors.grey[500]))]]), ], ), trailing: IconButton(icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20), onPressed: onDelete))))));
   }
 }
 
-// --- OPDATERET TASK DETAIL SCREEN ---
 class TaskDetailScreen extends StatefulWidget {
   final String taskId;
   final TodoTask initialTask;
   final VoidCallback onStartTask;
-
   const TaskDetailScreen({super.key, required this.taskId, required this.initialTask, required this.onStartTask});
-
   @override
   State<TaskDetailScreen> createState() => _TaskDetailScreenState();
 }
 
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
-  
   void _showEditDialog(BuildContext context, AppViewModel vm, TodoTask currentTask) {
     final titleController = TextEditingController(text: currentTask.title);
     final descController = TextEditingController(text: currentTask.description);
     String selectedCategory = currentTask.category;
-    DateTime? selectedDate = currentTask.dueDate; 
+    DateTime? selectedDate = currentTask.dueDate;
     TaskPriority selectedPriority = currentTask.priority;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder( 
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text("Rediger Opgave"),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(labelText: "Titel"),
-                  ),
-                  const SizedBox(height: 15),
-                  _CategorySelector(
-                    initialCategory: selectedCategory,
-                    onChanged: (val) => selectedCategory = val,
-                  ),
-                  const SizedBox(height: 15),
-                  _PrioritySelector(
-                    initialPriority: selectedPriority,
-                    onChanged: (val) => setState(() => selectedPriority = val),
-                  ),
-                  const SizedBox(height: 15),
-                  _DateSelector(
-                    selectedDate: selectedDate,
-                    onDateChanged: (date) => setState(() => selectedDate = date),
-                  ),
-                  const SizedBox(height: 15),
-                  TextField(
-                    controller: descController,
-                    decoration: const InputDecoration(labelText: "Noter/Beskrivelse"),
-                    maxLines: 3,
-                  ),
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(title: const Text("Rediger Opgave"),
+            content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  TextField(controller: titleController, decoration: const InputDecoration(labelText: "Titel")), const SizedBox(height: 15),
+                  _CategorySelector(initialCategory: selectedCategory, onChanged: (val) => selectedCategory = val), const SizedBox(height: 15),
+                  _PrioritySelector(initialPriority: selectedPriority, onChanged: (val) => setState(() => selectedPriority = val)), const SizedBox(height: 15),
+                  _DateSelector(selectedDate: selectedDate, onDateChanged: (date) => setState(() => selectedDate = date)), const SizedBox(height: 15),
+                  TextField(controller: descController, decoration: const InputDecoration(labelText: "Noter/Beskrivelse"), maxLines: 3),
                 ],
               ),
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
-              ElevatedButton(
-                onPressed: () {
-                  if (titleController.text.isNotEmpty) {
-                    final updatedTask = currentTask.copyWith(
-                      title: titleController.text,
-                      category: selectedCategory,
-                      description: descController.text,
-                      dueDate: selectedDate,
-                      priority: selectedPriority,
-                    );
-                    vm.updateTaskDetails(updatedTask);
-                    Navigator.pop(ctx);
-                  }
-                },
-                child: const Text("Gem"),
-              ),
-            ],
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")), ElevatedButton(onPressed: () { if (titleController.text.isNotEmpty) { final updatedTask = currentTask.copyWith(title: titleController.text, category: selectedCategory, description: descController.text, dueDate: selectedDate, priority: selectedPriority); vm.updateTaskDetails(updatedTask); Navigator.pop(ctx); } }, child: const Text("Gem"))],
           );
-        }
-      ),
+        }),
     );
   }
-
-  Color _getPriorityColor(TaskPriority p) {
-    switch(p) {
-      case TaskPriority.high: return Colors.redAccent;
-      case TaskPriority.medium: return Colors.orangeAccent;
-      case TaskPriority.low: return Colors.greenAccent;
-    }
-  }
-
+  Color _getPriorityColor(TaskPriority p) { switch(p) { case TaskPriority.high: return Colors.redAccent; case TaskPriority.medium: return Colors.orangeAccent; case TaskPriority.low: return Colors.greenAccent; } }
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateFormatter = DateFormat('EEE, d MMM yyyy');
-    
     final vm = context.watch<AppViewModel>();
     final task = vm.tasks.firstWhere((t) => t.id == widget.taskId, orElse: () => widget.initialTask);
-
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined), 
-            onPressed: () => _showEditDialog(context, vm, task)
-          ), 
-          const SizedBox(width: 8),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.primary,
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              child: const Text("GEM"),
-            ),
-          )
-        ],
-      ),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Hero(
-                    tag: 'task_${task.id}',
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: Text(
-                        task.title,
-                        style: GoogleFonts.poppins(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  Row(
-                    children: [
-                      Chip(
-                        label: Text(task.category),
-                        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                        labelStyle: TextStyle(color: theme.colorScheme.primary),
-                        side: BorderSide.none,
-                      ),
-                      const SizedBox(width: 10),
-                      Chip(
-                        avatar: Icon(Icons.flag, size: 16, color: _getPriorityColor(task.priority)),
-                        label: Text(task.priority.name.toUpperCase()),
-                        backgroundColor: _getPriorityColor(task.priority).withOpacity(0.1),
-                        labelStyle: TextStyle(color: _getPriorityColor(task.priority), fontWeight: FontWeight.bold),
-                        side: BorderSide.none,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 30),
-
-                  if (task.dueDate != null) ...[
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_month_outlined, color: Colors.grey[500]),
-                        const SizedBox(width: 10),
-                        Text(
-                          "Deadline: ${dateFormatter.format(task.dueDate!)}",
-                          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
-                  ],
-
-                  Text("NOTATER", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200),
-                    ),
-                    child: Text(
-                      task.description.isEmpty ? "Ingen noter tilføjet." : task.description,
-                      style: TextStyle(fontSize: 16, height: 1.5, color: theme.colorScheme.onSurface.withOpacity(0.8)),
-                    ),
-                  ),
-                  
+    return Scaffold(backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)), actions: [IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _showEditDialog(context, vm, task)), const SizedBox(width: 8), Padding(padding: const EdgeInsets.only(right: 16.0), child: TextButton(onPressed: () => Navigator.pop(context), style: TextButton.styleFrom(foregroundColor: theme.colorScheme.primary, textStyle: const TextStyle(fontWeight: FontWeight.bold)), child: const Text("GEM")))]),
+      body: SafeArea(child: Stack(children: [
+            SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Hero(tag: 'task_${task.id}', child: Material(type: MaterialType.transparency, child: Text(task.title, style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)))), const SizedBox(height: 20),
+                  Row(children: [Chip(label: Text(task.category), backgroundColor: theme.colorScheme.primary.withOpacity(0.1), labelStyle: TextStyle(color: theme.colorScheme.primary), side: BorderSide.none), const SizedBox(width: 10), Chip(avatar: Icon(Icons.flag, size: 16, color: _getPriorityColor(task.priority)), label: Text(task.priority.name.toUpperCase()), backgroundColor: _getPriorityColor(task.priority).withOpacity(0.1), labelStyle: TextStyle(color: _getPriorityColor(task.priority), fontWeight: FontWeight.bold), side: BorderSide.none)]), const SizedBox(height: 30),
+                  if (task.dueDate != null) ...[ Row(children: [Icon(Icons.calendar_month_outlined, color: Colors.grey[500]), const SizedBox(width: 10), Text("Deadline: ${dateFormatter.format(task.dueDate!)}", style: TextStyle(fontSize: 16, color: Colors.grey[600]))]), const SizedBox(height: 30) ],
+                  Text("NOTATER", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)), const SizedBox(height: 10),
+                  Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: theme.colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200)), child: Text(task.description.isEmpty ? "Ingen noter tilføjet." : task.description, style: TextStyle(fontSize: 16, height: 1.5, color: theme.colorScheme.onSurface.withOpacity(0.8)))),
                   const SizedBox(height: 100),
                 ],
               ),
             ),
-
-            Positioned(
-              left: 24,
-              right: 24,
-              bottom: 24,
-              child: SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: ElevatedButton.icon(
-                  onPressed: widget.onStartTask,
-                  icon: const Icon(Icons.play_arrow_rounded, size: 28),
-                  label: const Text("GÅ I GANG", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 5,
-                    shadowColor: theme.colorScheme.primary.withOpacity(0.4),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                ),
-              ),
-            ),
+            Positioned(left: 24, right: 24, bottom: 24, child: SizedBox(width: double.infinity, height: 60, child: ElevatedButton.icon(onPressed: widget.onStartTask, icon: const Icon(Icons.play_arrow_rounded, size: 28), label: const Text("GÅ I GANG", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0)), style: ElevatedButton.styleFrom(backgroundColor: theme.colorScheme.primary, foregroundColor: Colors.white, elevation: 5, shadowColor: theme.colorScheme.primary.withOpacity(0.4), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)))))),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _TimeChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _TimeChip({required this.label, required this.isSelected, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? Colors.transparent : (isDark ? Colors.white12 : Colors.grey.shade200)),
+          boxShadow: isSelected ? [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))] : [],
+        ),
+        child: Text(label, style: TextStyle(color: isSelected ? Colors.white : theme.colorScheme.onSurface, fontWeight: FontWeight.bold)),
       ),
     );
   }
