@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Til at tjekke ejerskab
+import 'package:firebase_auth/firebase_auth.dart'; 
 import '../models.dart';
 import '../models/todo_list.dart';
 import '../viewmodel.dart';
@@ -22,40 +22,49 @@ class TodoListScreen extends StatelessWidget {
     final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'add_task_btn',
-        onPressed: () => _showAddDialog(context, vm),
-        backgroundColor: theme.colorScheme.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("Ny Opgave", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      // Vi bruger en Column til at stable knapperne
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // --- SEKUNDÆR KNAP: NY LISTE ---
+          FloatingActionButton.extended(
+            heroTag: 'add_list_btn',
+            onPressed: () => _showCreateListDialog(context, vm),
+            backgroundColor: theme.colorScheme.surface,
+            foregroundColor: theme.colorScheme.primary,
+            elevation: 4,
+            icon: const Icon(Icons.playlist_add),
+            label: const Text("Ny Liste"),
+          ),
+          const SizedBox(height: 16),
+          
+          // --- PRIMÆR KNAP: NY OPGAVE ---
+          FloatingActionButton.extended(
+            heroTag: 'add_task_btn',
+            onPressed: () => _showAddDialog(context, vm),
+            backgroundColor: theme.colorScheme.primary,
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text("Ny Opgave", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // --- HEADER: OPRET LISTE ---
+          // --- HEADER: MINE LISTER (Nu uden knap) ---
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "MINE LISTER", 
-                  style: TextStyle(
-                    fontSize: 12, 
-                    fontWeight: FontWeight.bold, 
-                    color: Colors.grey[600], 
-                    letterSpacing: 1.2
-                  )
-                ),
-                TextButton.icon(
-                  onPressed: () => _showCreateListDialog(context, vm),
-                  icon: const Icon(Icons.add_circle_outline, size: 18),
-                  label: const Text("Ny Liste"),
-                  style: TextButton.styleFrom(
-                    foregroundColor: theme.colorScheme.primary,
-                    textStyle: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "MINE LISTER", 
+                style: TextStyle(
+                  fontSize: 12, 
+                  fontWeight: FontWeight.bold, 
+                  color: Colors.grey[600], 
+                  letterSpacing: 1.2
+                )
+              ),
             ),
           ),
 
@@ -80,11 +89,10 @@ class TodoListScreen extends StatelessWidget {
               : RefreshIndicator(
                   onRefresh: () => vm.loadData(),
                   child: ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 80), // Plads til FAB
+                    padding: const EdgeInsets.only(bottom: 100), // Mere plads til de to knapper
                     itemCount: vm.lists.length,
                     itemBuilder: (ctx, i) {
                       final list = vm.lists[i];
-                      // Filtrer opgaver der hører til denne liste
                       final listTasks = vm.allTasks.where((t) => t.listId == list.id).toList();
                       final isOwner = currentUser?.uid == list.ownerId;
 
@@ -95,11 +103,10 @@ class TodoListScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16),
                           side: BorderSide(color: Colors.grey.withOpacity(0.2)),
                         ),
-                        clipBehavior: Clip.antiAlias, // Sikrer at ripples holder sig indenfor
+                        clipBehavior: Clip.antiAlias,
                         child: Theme(
                           data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                           child: ExpansionTile(
-                            // Sæt denne liste som aktiv når den åbnes
                             onExpansionChanged: (expanded) {
                               if (expanded) vm.setActiveList(list.id);
                             },
@@ -152,7 +159,6 @@ class TodoListScreen extends StatelessWidget {
                               ],
                             ),
                             children: [
-                              // --- OPGAVER I LISTEN ---
                               if (listTasks.isEmpty)
                                 Padding(
                                   padding: const EdgeInsets.all(16.0),
@@ -164,7 +170,7 @@ class TodoListScreen extends StatelessWidget {
                                   onTap: () => _openTaskDetail(context, task, vm),
                                   onToggle: () => vm.toggleTask(task.id),
                                   onDelete: () => vm.deleteTask(task.id),
-                                  compact: true, // Lidt mindre padding i listen
+                                  compact: true,
                                 )),
                               const SizedBox(height: 8),
                             ],
@@ -197,7 +203,6 @@ class TodoListScreen extends StatelessWidget {
     );
   }
 
-  // --- DIALOG: OPRET LISTE ---
   void _showCreateListDialog(BuildContext context, AppViewModel vm) {
     final controller = TextEditingController();
     showDialog(
@@ -225,7 +230,6 @@ class TodoListScreen extends StatelessWidget {
     );
   }
 
-  // --- DIALOG: INVITER BRUGER ---
   void _showInviteDialog(BuildContext context, AppViewModel vm, TodoList list) {
     final controller = TextEditingController();
     showDialog(
@@ -268,7 +272,6 @@ class TodoListScreen extends StatelessWidget {
     );
   }
 
-  // --- DIALOG: SLET LISTE ---
   void _showDeleteListDialog(BuildContext context, AppViewModel vm, TodoList list) {
     showDialog(
       context: context,
@@ -290,7 +293,6 @@ class TodoListScreen extends StatelessWidget {
     );
   }
 
-  // --- DIALOG: OPRET OPGAVE (OPDATERET) ---
   void _showAddDialog(BuildContext context, AppViewModel vm) {
     final titleController = TextEditingController();
     final descController = TextEditingController();
@@ -298,7 +300,6 @@ class TodoListScreen extends StatelessWidget {
     DateTime? selectedDate;
     TaskPriority selectedPriority = TaskPriority.medium;
     
-    // Vi skal bruge en liste til opgaven. Brug den aktive, eller den første.
     String? targetListId = vm.activeListId ?? (vm.lists.isNotEmpty ? vm.lists.first.id : null);
 
     if (targetListId == null) {
@@ -318,7 +319,6 @@ class TodoListScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Vælg Liste Dropdown
                   DropdownButtonFormField<String>(
                     value: targetListId,
                     decoration: const InputDecoration(labelText: "Tilføj til liste"),
@@ -329,12 +329,11 @@ class TodoListScreen extends StatelessWidget {
                     onChanged: (val) {
                       if (val != null) {
                         setState(() => targetListId = val);
-                        vm.setActiveList(val); // Opdater aktiv liste i baggrunden
+                        vm.setActiveList(val); 
                       }
                     },
                   ),
                   const SizedBox(height: 10),
-                  
                   TextField(
                     controller: titleController, 
                     autofocus: true,
@@ -368,7 +367,6 @@ class TodoListScreen extends StatelessWidget {
               TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
               ElevatedButton(onPressed: () {
                 if (titleController.text.isNotEmpty && targetListId != null) {
-                  // Sørg for at VM ved hvilken liste vi bruger
                   vm.setActiveList(targetListId!);
                   vm.addTask(
                     titleController.text,
@@ -388,7 +386,6 @@ class TodoListScreen extends StatelessWidget {
   }
 }
 
-// Genbruger TaskCard, men tilføjer en 'compact' mode til visning i lister
 class _TaskCard extends StatelessWidget {
   final TodoTask task;
   final VoidCallback onTap;
@@ -421,7 +418,6 @@ class _TaskCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        // Hvis compact (inde i liste), fjern margin og brug en simpel border i bunden
         margin: compact ? EdgeInsets.zero : const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           color: compact ? Colors.transparent : theme.colorScheme.surface,
