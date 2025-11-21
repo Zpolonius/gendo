@@ -204,7 +204,7 @@ class _MainScreenState extends State<MainScreen> {
         selectedIndex: _currentIndex,
         onDestinationSelected: _switchTab,
         backgroundColor: theme.colorScheme.surface,
-        indicatorColor: theme.colorScheme.primary.withOpacity(0.2),
+        indicatorColor: theme.colorScheme.primary,
         elevation: 0.0,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Fokus'),
