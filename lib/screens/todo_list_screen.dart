@@ -1,19 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart'; // VIGTIGT: Denne manglede for DateFormat
 import '../models.dart';
-import '../models/todo_list.dart';
+import '../models/todo_list.dart'; // VIGTIGT: For TodoList klassen
 import '../viewmodel.dart';
 import 'task_detail_screen.dart';
 import '../widgets/category_selector.dart';
 import '../widgets/priority_selector.dart';
 import '../widgets/date_selector.dart';
 
-class TodoListScreen extends StatelessWidget {
+class TodoListScreen extends StatefulWidget {
   final Function(int) onSwitchTab; 
   
   const TodoListScreen({super.key, required this.onSwitchTab});
+
+  @override
+  State<TodoListScreen> createState() => _TodoListScreenState();
+}
+
+class _TodoListScreenState extends State<TodoListScreen> {
+  // State til at styre om menuen er åben
+  bool _isFabExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -22,169 +30,203 @@ class TodoListScreen extends StatelessWidget {
     final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      // Vi bruger en Column til at stable knapperne
+      // --- TRIN 1: SAMLET KNAP (SPEED DIAL) ---
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min, // Vigtigt for at Column ikke fylder hele højden
         children: [
-          // --- SEKUNDÆR KNAP: NY LISTE ---
-          FloatingActionButton.extended(
-            heroTag: 'add_list_btn',
-            onPressed: () => _showCreateListDialog(context, vm),
-            backgroundColor: theme.colorScheme.surface,
-            foregroundColor: theme.colorScheme.primary,
-            elevation: 4,
-            icon: const Icon(Icons.playlist_add),
-            label: const Text("Ny Liste"),
-          ),
-          const SizedBox(height: 16),
-          
-          // --- PRIMÆR KNAP: NY OPGAVE ---
-          FloatingActionButton.extended(
-            heroTag: 'add_task_btn',
-            onPressed: () => _showAddDialog(context, vm),
-            backgroundColor: theme.colorScheme.primary,
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text("Ny Opgave", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          // Hvis menuen er åben, vis de to knapper
+          if (_isFabExpanded) ...[
+            FloatingActionButton.extended(
+              heroTag: 'add_list_btn',
+              onPressed: () {
+                setState(() => _isFabExpanded = false); // Luk menu efter valg
+                _showCreateListDialog(context, vm);
+              },
+              backgroundColor: theme.colorScheme.surface,
+              foregroundColor: theme.colorScheme.primary,
+              icon: const Icon(Icons.playlist_add),
+              label: const Text("Ny Liste"),
+            ),
+            const SizedBox(height: 16),
+            FloatingActionButton.extended(
+              heroTag: 'add_task_btn',
+              onPressed: () {
+                setState(() => _isFabExpanded = false); // Luk menu efter valg
+                _showAddDialog(context, vm);
+              },
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_task),
+              label: const Text("Ny Opgave"),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Hovedknappen (Åbn/Luk)
+          FloatingActionButton(
+            heroTag: 'main_fab',
+            onPressed: () {
+              setState(() {
+                _isFabExpanded = !_isFabExpanded;
+              });
+            },
+            backgroundColor: _isFabExpanded ? Colors.grey : theme.colorScheme.primary,
+            child: Icon(
+              _isFabExpanded ? Icons.close : Icons.add, 
+              color: Colors.white,
+              size: 28,
+            ),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // --- HEADER: MINE LISTER (Nu uden knap) ---
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "MINE LISTER", 
-                style: TextStyle(
-                  fontSize: 12, 
-                  fontWeight: FontWeight.bold, 
-                  color: Colors.grey[600], 
-                  letterSpacing: 1.2
-                )
+      
+      // Klik på baggrunden for at lukke menuen (valgfrit men god UX)
+      body: GestureDetector(
+        onTap: () {
+          if (_isFabExpanded) setState(() => _isFabExpanded = false);
+        },
+        behavior: HitTestBehavior.translucent, // Sikrer at taps registreres selv på tomme områder
+        child: Column(
+          children: [
+            // --- HEADER: MINE LISTER ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "MINE LISTER", 
+                  style: TextStyle(
+                    fontSize: 12, 
+                    fontWeight: FontWeight.bold, 
+                    color: Colors.grey[600], 
+                    letterSpacing: 1.2
+                  )
+                ),
               ),
             ),
-          ),
 
-          // --- LISTE OVER LISTER ---
-          Expanded(
-            child: vm.lists.isEmpty 
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.list_alt_rounded, size: 64, color: Colors.grey[300]),
-                      const SizedBox(height: 16),
-                      Text("Ingen lister endnu", style: TextStyle(color: Colors.grey[500])),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: () => _showCreateListDialog(context, vm),
-                        child: const Text("Opret din første liste"),
-                      )
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: () => vm.loadData(),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 100), // Mere plads til de to knapper
-                    itemCount: vm.lists.length,
-                    itemBuilder: (ctx, i) {
-                      final list = vm.lists[i];
-                      final listTasks = vm.allTasks.where((t) => t.listId == list.id).toList();
-                      final isOwner = currentUser?.uid == list.ownerId;
+            // --- LISTE OVER LISTER ---
+            Expanded(
+              child: vm.lists.isEmpty 
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.list_alt_rounded, size: 64, color: Colors.grey[300]),
+                        const SizedBox(height: 16),
+                        Text("Ingen lister endnu", style: TextStyle(color: Colors.grey[500])),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () => _showCreateListDialog(context, vm),
+                          child: const Text("Opret din første liste"),
+                        )
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: () => vm.loadData(),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 100),
+                      itemCount: vm.lists.length,
+                      itemBuilder: (ctx, i) {
+                        final list = vm.lists[i];
+                        final listTasks = vm.allTasks.where((t) => t.listId == list.id).toList();
+                        final isOwner = currentUser?.uid == list.ownerId;
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Theme(
-                          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                          child: ExpansionTile(
-                            onExpansionChanged: (expanded) {
-                              if (expanded) vm.setActiveList(list.id);
-                            },
-                            backgroundColor: theme.colorScheme.surface,
-                            collapsedBackgroundColor: theme.colorScheme.surface,
-                            title: Text(
-                              list.title,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                            subtitle: Text(
-                              "${listTasks.length} opgaver • ${list.memberIds.length} medlemmer",
-                              style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                            ),
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.list, color: theme.colorScheme.primary, size: 20),
-                            ),
-                            trailing: PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert, color: Colors.grey),
-                              onSelected: (value) {
-                                if (value == 'invite') _showInviteDialog(context, vm, list);
-                                if (value == 'delete') _showDeleteListDialog(context, vm, list);
+                        return Card(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Theme(
+                            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                            child: ExpansionTile(
+                              onExpansionChanged: (expanded) {
+                                if (expanded) vm.setActiveList(list.id);
                               },
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(
-                                  value: 'invite',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.person_add_outlined, size: 20),
-                                      SizedBox(width: 8),
-                                      Text("Inviter medlem"),
-                                    ],
-                                  ),
+                              backgroundColor: theme.colorScheme.surface,
+                              collapsedBackgroundColor: theme.colorScheme.surface,
+                              title: Text(
+                                list.title,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              subtitle: Text(
+                                "${listTasks.length} opgaver • ${list.memberIds.length} medlemmer",
+                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                              ),
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary.withOpacity(0.1),
+                                  shape: BoxShape.circle,
                                 ),
-                                if (isOwner)
+                                child: Icon(Icons.list, color: theme.colorScheme.primary, size: 20),
+                              ),
+                              trailing: PopupMenuButton<String>(
+                                icon: const Icon(Icons.more_vert, color: Colors.grey),
+                                onSelected: (value) {
+                                  if (value == 'invite') _showInviteDialog(context, vm, list);
+                                  if (value == 'delete') _showDeleteListDialog(context, vm, list);
+                                },
+                                itemBuilder: (context) => [
                                   const PopupMenuItem(
-                                    value: 'delete',
+                                    value: 'invite',
                                     child: Row(
                                       children: [
-                                        Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                        Icon(Icons.person_add_outlined, size: 20),
                                         SizedBox(width: 8),
-                                        Text("Slet liste", style: TextStyle(color: Colors.red)),
+                                        Text("Inviter medlem"),
                                       ],
                                     ),
                                   ),
+                                  if (isOwner)
+                                    const PopupMenuItem(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                          SizedBox(width: 8),
+                                          Text("Slet liste", style: TextStyle(color: Colors.red)),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              children: [
+                                if (listTasks.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Text("Ingen opgaver i denne liste.", style: TextStyle(color: Colors.grey[400], fontStyle: FontStyle.italic)),
+                                  )
+                                else
+                                  ...listTasks.map((task) => _TaskCard(
+                                    task: task, 
+                                    onTap: () => _openTaskDetail(context, task, vm),
+                                    onToggle: () => vm.toggleTask(task.id),
+                                    onDelete: () => vm.deleteTask(task.id),
+                                    compact: true,
+                                  )),
+                                const SizedBox(height: 8),
                               ],
                             ),
-                            children: [
-                              if (listTasks.isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Text("Ingen opgaver i denne liste.", style: TextStyle(color: Colors.grey[400], fontStyle: FontStyle.italic)),
-                                )
-                              else
-                                ...listTasks.map((task) => _TaskCard(
-                                  task: task, 
-                                  onTap: () => _openTaskDetail(context, task, vm),
-                                  onToggle: () => vm.toggleTask(task.id),
-                                  onDelete: () => vm.deleteTask(task.id),
-                                  compact: true,
-                                )),
-                              const SizedBox(height: 8),
-                            ],
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  // --- HELPERS & DIALOGS ---
 
   void _openTaskDetail(BuildContext context, TodoTask task, AppViewModel vm) {
     Navigator.push(
@@ -196,7 +238,7 @@ class TodoListScreen extends StatelessWidget {
           onStartTask: () {
             vm.setSelectedTask(task.id);
             Navigator.pop(context);
-            onSwitchTab(0); 
+            widget.onSwitchTab(0); 
           },
         )
       )
@@ -386,6 +428,7 @@ class TodoListScreen extends StatelessWidget {
   }
 }
 
+// Genbruger TaskCard, men tilføjer en 'compact' mode til visning i lister
 class _TaskCard extends StatelessWidget {
   final TodoTask task;
   final VoidCallback onTap;
