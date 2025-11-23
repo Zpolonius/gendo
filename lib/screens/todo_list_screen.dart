@@ -27,9 +27,10 @@ class _TodoListScreenState extends State<TodoListScreen> {
   Widget build(BuildContext context) {
     final vm = context.watch<AppViewModel>();
     final theme = Theme.of(context);
+    final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      // --- SPEED DIAL FAB ---
+      // --- TRIN 1: SAMLET KNAP (SPEED DIAL) ---
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -82,7 +83,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
       body: GestureDetector(
         onTap: () {
           if (_isFabExpanded) setState(() => _isFabExpanded = false);
-          FocusScope.of(context).unfocus();
         },
         behavior: HitTestBehavior.translucent,
         child: Column(
@@ -103,7 +103,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
               ),
             ),
 
-            // --- LISTE OVER LISTER ---
             Expanded(
               child: vm.lists.isEmpty 
                 ? Center(
@@ -128,7 +127,9 @@ class _TodoListScreenState extends State<TodoListScreen> {
                       itemCount: vm.lists.length,
                       itemBuilder: (ctx, i) {
                         final list = vm.lists[i];
-                        // Vi bruger den statefulde widget til hvert kort (for input feltet)
+                        final listTasks = vm.allTasks.where((t) => t.listId == list.id).toList();
+                        final isOwner = currentUser?.uid == list.ownerId;
+
                         return _TodoListCard(
                           list: list, 
                           vm: vm,
@@ -420,6 +421,7 @@ class _TodoListCardState extends State<_TodoListCard> {
   }
 }
 
+// --- OPDATERET TASK CARD (MED PRIORITET FØRST & TJEK TIL HØJRE) ---
 class _TaskCard extends StatelessWidget {
   final TodoTask task;
   final VoidCallback onTap;
@@ -461,13 +463,17 @@ class _TaskCard extends StatelessWidget {
         ),
         child: ListTile(
           contentPadding: EdgeInsets.symmetric(horizontal: compact ? 8 : 16, vertical: compact ? 0 : 12),
-          // --- TRIN 4: FLYT FULDFØR KNAP TIL HØJRE (TRAILING) ---
-          // Før: leading: IconButton(...)
-          // Nu: trailing: IconButton(...)
           
-          // Vi fjerner leading (eller bruger den til noget andet, f.eks. prioritet farve-stribe, hvis vi ville)
-          // Men her fjerner vi den bare for at gøre plads til teksten.
-          
+          // --- 1. LEADING: PRIORITETS INDIKATOR ---
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: _getPriorityColor(task.priority).withValues(alpha:0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.pending_actions_outlined, color: _getPriorityColor(task.priority), size: 20),
+          ),
+
           title: Text(
             task.title, 
             maxLines: 1,
@@ -479,25 +485,23 @@ class _TaskCard extends StatelessWidget {
               decoration: task.isCompleted ? TextDecoration.lineThrough : null,
             )
           ),
+          
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _getPriorityColor(task.priority).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      task.priority.name.toUpperCase(),
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _getPriorityColor(task.priority)),
-                    ),
+                  // Kategori
+                  Text(
+                    task.category, 
+                    style: TextStyle(fontSize: 12, color: theme.colorScheme.primary.withOpacity(0.7))
                   ),
-                  const SizedBox(width: 8),
+                  
                   if (task.dueDate != null) ...[
+                    const SizedBox(width: 8),
+                    const Text("•", style: TextStyle(color: Colors.grey)), 
+                    const SizedBox(width: 8),
                     Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
                     const SizedBox(width: 4),
                     Text(
@@ -510,7 +514,7 @@ class _TaskCard extends StatelessWidget {
             ],
           ),
           
-          // --- HER ER DEN NYE PLACERING ---
+          // --- 2. TRAILING: TJEKBOKS  ---
           trailing: IconButton(
             icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined),
             color: task.isCompleted ? Colors.green : Colors.grey,

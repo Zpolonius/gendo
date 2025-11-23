@@ -156,7 +156,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           color: theme.scaffoldBackgroundColor,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -5),
             )
@@ -207,7 +207,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                         color: task.isCompleted ? Colors.green : theme.colorScheme.primary,
                       ),
                       label: Text(
-                        task.isCompleted ? "Genåbn" : "Udfør",
+                        task.isCompleted ? "Genåbn" : "Fuldfør",
                         style: TextStyle(
                           color: task.isCompleted ? Colors.green : theme.colorScheme.primary,
                           fontWeight: FontWeight.bold
@@ -284,7 +284,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 ),
                 const SizedBox(width: 10),
                 Chip(
-                  avatar: Icon(Icons.flag, size: 16, color: _getPriorityColor(task.priority)),
+                  avatar: Icon(Icons.pending_actions_outlined, size: 16, color: _getPriorityColor(task.priority)),
                   label: Text(task.priority.name.toUpperCase()),
                   backgroundColor: _getPriorityColor(task.priority).withOpacity(0.1),
                   labelStyle: TextStyle(color: _getPriorityColor(task.priority), fontWeight: FontWeight.bold),
