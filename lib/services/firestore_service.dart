@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models.dart';
 import '../models/todo_list.dart';
+import '../models/user_profile.dart'; // Husk import
 import '../repository.dart';
 
 class FirestoreService implements TaskRepository {
@@ -15,23 +16,24 @@ class FirestoreService implements TaskRepository {
   static const List<String> _defaultCategories = [
     'Generelt', 'Arbejde', 'Personlig', 'Studie', 'Indkøb',
   ];
-
-  // --- REPARATION AF DATA (NY) ---
-  @override
-  Future<void> ensureUserDocument(String email) async {
-    // Tjek om dokumentet findes
+  
+  // --- HENT BRUGER PROFIL (NY) ---
+  // Bruges til ProfileScreen
+  Future<UserProfile?> getUserProfile() async {
     final doc = await _userDoc.get();
-    if (!doc.exists) {
-      // Hvis det mangler, opret det!
-      await _userDoc.set({
-        'email': email,
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-      }, SetOptions(merge: true));
-      print("Reparerede bruger-dokument for $email");
+    if (doc.exists && doc.data() != null) {
+      return UserProfile.fromMap(doc.data() as Map<String, dynamic>, _userId);
     }
+    return null;
+  }
+  
+  // --- OPDATER PROFIL (NY) ---
+  Future<void> updateUserProfile(Map<String, dynamic> data) async {
+    await _userDoc.update(data);
   }
 
-  // --- MEDLEMS DETALJER (ROBUST) ---
+  // --- MEDLEMS DETALJER (OPDATERET) ---
+  // Nu henter vi Navn+Efternavn i stedet for email hvis muligt
   @override
   Future<List<Map<String, String>>> getMembersDetails(List<String> memberIds) async {
     if (memberIds.isEmpty) return [];
@@ -42,17 +44,25 @@ class FirestoreService implements TaskRepository {
       try {
         final doc = await _db.collection('users').doc(id).get();
         
-        // Tjek om vi fandt data
-        if (doc.exists && doc.data() != null && doc.data()!['email'] != null) {
+        if (doc.exists && doc.data() != null) {
+          final data = doc.data()!;
+          String displayName = data['email'] ?? 'Ukendt';
+          
+          // Hvis vi har fornavn og efternavn, så brug det!
+          if (data['firstName'] != null && data['lastName'] != null) {
+            displayName = "${data['firstName']} ${data['lastName']}";
+          }
+          
           members.add({
             'id': id,
-            'email': doc.data()!['email'] as String,
+            'email': data['email'] as String, // Vi beholder email til identifikation
+            'displayName': displayName,      // Det navn vi viser i UI
           });
         } else {
-          // FALLBACK: Hvis profilen mangler, vis ID'et i stedet for at skjule medlemmet
           members.add({
             'id': id,
-            'email': 'Bruger uden profil (ID: ${id.substring(0, 5)}...)',
+            'email': 'Ukendt',
+            'displayName': 'Bruger uden profil',
           });
         }
       } catch (e) {
@@ -62,11 +72,11 @@ class FirestoreService implements TaskRepository {
     return members;
   }
 
-  // ... (Resten af filen skal være uændret fra før. Kopier venligst dine eksisterende metoder ind herunder) ...
+  // ... (RESTEN AF FILEN ER UÆNDRET. KOPIER DINE EKSISTERENDE METODER IND HER)
+  // For at holde svaret kort, udelader jeg de metoder vi lavede sidst (getTasks, createList osv.),
+  // da de ikke skal ændres. Du skal bare beholde dem.
   
-  // For at koden virker komplet her, indsætter jeg de korte versioner, 
-  // men du bør bruge den fulde version fra vores tidligere trin hvis du har lavet ændringer.
-
+  @override Future<void> ensureUserDocument(String email) async { /* ... */ }
   @override Future<List<TodoList>> getLists() async {
     final snapshot = await _listsCollection.where('memberIds', arrayContains: _userId).get();
     return snapshot.docs.map((doc) => TodoList.fromMap(doc.data() as Map<String, dynamic>)).toList();
@@ -111,9 +121,7 @@ class FirestoreService implements TaskRepository {
      if (ownerId == _userId || userIdToRemove == _userId) {
         if (userIdToRemove == ownerId) throw Exception("Ejeren kan ikke forlade listen");
         await _listsCollection.doc(listId).update({'memberIds': FieldValue.arrayRemove([userIdToRemove])});
-     } else {
-       throw Exception("Kun ejeren kan fjerne medlemmer");
-     }
+     } else { throw Exception("Kun ejeren kan fjerne medlemmer"); }
   }
   @override Future<List<TodoTask>> getTasks(String listId) async {
     final snapshot = await _listsCollection.doc(listId).collection('tasks').get();

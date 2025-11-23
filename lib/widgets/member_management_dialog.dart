@@ -43,13 +43,9 @@ class _MemberManagementDialogState extends State<MemberManagementDialog> {
     try {
       await vm.inviteUser(widget.list.id, email);
       _inviteController.clear();
-      // Vi lukker ikke dialogen, men viser succes
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invitation sendt!")));
-        // Genindlæs data (hvis invitationen blev accepteret direkte eller pending opdateret)
-        vm.loadData(); // Opdaterer listerne i baggrunden
-        // Vi opdaterer ikke medlemslisten her, da pending invites ikke er "medlemmer" endnu
-        // Men vi kunne vise pending invites separat hvis vi ville.
+        vm.loadData(); 
       }
     } catch (e) {
       if (mounted) {
@@ -62,7 +58,7 @@ class _MemberManagementDialogState extends State<MemberManagementDialog> {
     final vm = context.read<AppViewModel>();
     try {
       await vm.removeMember(widget.list.id, userId);
-      _loadMembers(); // Genindlæs listen
+      _loadMembers(); 
     } catch (e) {
        if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fejl: $e"), backgroundColor: Colors.red));
@@ -98,15 +94,31 @@ class _MemberManagementDialogState extends State<MemberManagementDialog> {
                     final member = _members[i];
                     final isMe = member['id'] == currentUser?.uid;
                     final isMemberOwner = member['id'] == widget.list.ownerId;
+                    
+                    // Vi bruger nu 'displayName' hvis den findes, ellers email
+                    final nameToShow = member['displayName'] ?? member['email'] ?? "Ukendt";
+                    final emailToShow = member['email'] ?? "";
 
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(
                         backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                        child: Text(member['email']?[0].toUpperCase() ?? "?", style: TextStyle(color: theme.colorScheme.primary)),
+                        // Vis første bogstav af navnet
+                        child: Text(
+                          nameToShow.isNotEmpty ? nameToShow[0].toUpperCase() : "?", 
+                          style: TextStyle(color: theme.colorScheme.primary)
+                        ),
                       ),
-                      title: Text(member['email'] ?? "Ukendt", style: TextStyle(fontWeight: isMe ? FontWeight.bold : FontWeight.normal)),
-                      subtitle: isMemberOwner ? const Text("Ejer", style: TextStyle(fontSize: 10, color: Colors.grey)) : null,
+                      // FIX: Vis Navn (displayName) her i stedet for kun email
+                      title: Text(
+                        nameToShow + (isMe ? " (Dig)" : ""), 
+                        style: TextStyle(fontWeight: isMe ? FontWeight.bold : FontWeight.normal)
+                      ),
+                      // FIX: Vis E-mail og Ejer-status i underteksten
+                      subtitle: Text(
+                        isMemberOwner ? "Ejer • $emailToShow" : emailToShow,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
                       trailing: (isOwner && !isMemberOwner) 
                         ? IconButton(
                             icon: const Icon(Icons.remove_circle_outline, color: Colors.red),

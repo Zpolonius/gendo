@@ -3,7 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../viewmodel.dart';
 import '../services/auth_service.dart';
-import '../screens/pomodoro_settings_screen.dart'; // Import den nye skærm
+import '../screens/pomodoro_settings_screen.dart';
+import '../screens/profile_screen.dart'; // NY IMPORT
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -11,7 +12,7 @@ class AppDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<AppViewModel>();
-    final user = context.watch<User?>();
+    final user = context.watch<User?>(); 
     final theme = Theme.of(context);
     final isDark = vm.isDarkMode;
 
@@ -30,27 +31,32 @@ class AppDrawer extends StatelessWidget {
                 style: TextStyle(fontSize: 24, color: theme.colorScheme.primary),
               ),
             ),
+            // Gør headeren klikbar for hurtig adgang til profil
+            onDetailsPressed: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+            },
           ),
 
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
+                // LINK TIL PROFIL SCREEN
                 ListTile(
                   leading: Icon(Icons.person_outline, color: theme.colorScheme.onSurface),
                   title: const Text("Profilindstillinger"),
                   onTap: () {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kommer snart!")));
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
                   },
                 ),
                 
-                // --- NYT MENUPUNKT ---
                 ListTile(
                   leading: Icon(Icons.timer_outlined, color: theme.colorScheme.onSurface),
                   title: const Text("Pomodoro Indstillinger"),
                   onTap: () {
-                    Navigator.pop(context); // Luk menuen først
+                    Navigator.pop(context); 
                     Navigator.push(
                       context, 
                       MaterialPageRoute(builder: (_) => const PomodoroSettingsScreen()),
