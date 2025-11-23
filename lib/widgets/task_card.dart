@@ -52,6 +52,7 @@ class TaskCard extends StatelessWidget {
               color: _getPriorityColor(task.priority).withOpacity(0.1),
               shape: BoxShape.circle,
             ),
+            // OPDATERET IKON HER:
             child: Icon(Icons.pending_actions_outlined, color: _getPriorityColor(task.priority), size: 20),
           ),
 

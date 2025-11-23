@@ -4,7 +4,8 @@ import '../models.dart';
 import '../models/todo_list.dart';
 import '../viewmodel.dart';
 import '../screens/task_detail_screen.dart';
-import 'task_card.dart'; // Import den nye task card
+import 'task_card.dart';
+import 'member_management_dialog.dart'; // HUSK IMPORT
 
 class TodoListCard extends StatefulWidget {
   final TodoList list;
@@ -57,50 +58,11 @@ class _TodoListCardState extends State<TodoListCard> {
     );
   }
 
-  // --- DIALOGS ---
-  void _showInviteDialog(BuildContext context) {
-    final controller = TextEditingController();
+  // --- ÅBNER DEN NYE DIALOG ---
+  void _showMembersDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text("Inviter til '${widget.list.title}'"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Indtast e-mailen på den bruger, du vil invitere:", style: TextStyle(fontSize: 14, color: Colors.grey)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: "E-mail",
-                prefixIcon: Icon(Icons.email_outlined),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                try {
-                  await widget.vm.inviteUser(widget.list.id, controller.text.trim());
-                  if (ctx.mounted) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invitation sendt!")));
-                  }
-                } catch (e) {
-                  if (ctx.mounted) {
-                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fejl: $e"), backgroundColor: Colors.red));
-                  }
-                }
-              }
-            }, 
-            child: const Text("Inviter")
-          ),
-        ],
-      ),
+      builder: (ctx) => MemberManagementDialog(list: widget.list),
     );
   }
 
@@ -168,17 +130,18 @@ class _TodoListCardState extends State<TodoListCard> {
           trailing: PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: Colors.grey),
             onSelected: (value) {
-              if (value == 'invite') _showInviteDialog(context);
+              if (value == 'members') _showMembersDialog(context);
               if (value == 'delete') _showDeleteListDialog(context);
             },
             itemBuilder: (context) => [
+              // --- OPDATERET MENU PUNKT ---
               const PopupMenuItem(
-                value: 'invite',
+                value: 'members',
                 child: Row(
                   children: [
-                    Icon(Icons.person_add_outlined, size: 20),
+                    Icon(Icons.group_outlined, size: 20),
                     SizedBox(width: 8),
-                    Text("Inviter medlem"),
+                    Text("Medlemmer"), // Før: "Inviter"
                   ],
                 ),
               ),
@@ -196,7 +159,6 @@ class _TodoListCardState extends State<TodoListCard> {
             ],
           ),
           children: [
-            // --- INPUT FELT ---
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: Container(

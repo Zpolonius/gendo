@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // VIGTIGT: Tilføjet import
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -18,10 +19,19 @@ class AuthService {
     }
   }
 
-  // Register with email and password
+  // Register with email and password (OPDATERET)
   Future<UserCredential> registerWithEmailAndPassword(String email, String password) async {
     try {
-      return await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      // 1. Opret i Auth systemet
+      UserCredential result = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      
+      // 2. Opret straks dokument i Firestore så vi kan finde e-mailen senere
+      await FirebaseFirestore.instance.collection('users').doc(result.user!.uid).set({
+        'email': email,
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      });
+      
+      return result;
     } catch (e) {
       rethrow;
     }

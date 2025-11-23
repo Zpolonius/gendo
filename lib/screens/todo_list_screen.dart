@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models.dart';
 import '../viewmodel.dart';
-import '../widgets/todo_list_card.dart'; // HUSK AT IMPORTERE DEN NYE WIDGET
+import '../widgets/category_selector.dart';
+import '../widgets/priority_selector.dart';
+import '../widgets/date_selector.dart';
+import '../widgets/todo_list_card.dart'; // HUSK: Denne fil skal eksistere i widgets mappen
 
 class TodoListScreen extends StatefulWidget {
   final Function(int) onSwitchTab; 
@@ -73,7 +77,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
                     itemCount: vm.lists.length,
                     itemBuilder: (ctx, i) {
                       final list = vm.lists[i];
-                      // Her bruger vi den nye widget fra lib/widgets/todo_list_card.dart
+                      // RETTELSE: Bruger nu TodoListCard fra importen (uden understreg)
                       return TodoListCard(
                         list: list, 
                         vm: vm,
@@ -86,10 +90,10 @@ class _TodoListScreenState extends State<TodoListScreen> {
           ],
         ),
       );
-    
   }
 
   // --- DIALOGS ---
+
   void _showCreateListDialog(BuildContext context, AppViewModel vm) {
     final controller = TextEditingController();
     showDialog(
@@ -113,6 +117,109 @@ class _TodoListScreenState extends State<TodoListScreen> {
             child: const Text("Opret")
           ),
         ],
+      ),
+    );
+  }
+
+  // Add Task dialog (Beholdes som backup eller til global oprettelse)
+  void _showAddDialog(BuildContext context, AppViewModel vm) {
+    final titleController = TextEditingController();
+    final descController = TextEditingController();
+    String selectedCategory = 'Generelt';
+    DateTime? selectedDate;
+    TaskPriority selectedPriority = TaskPriority.medium;
+    
+    String? targetListId = vm.activeListId ?? (vm.lists.isNotEmpty ? vm.lists.first.id : null);
+
+    // Sikkerhedstjek
+    if (targetListId != null) {
+      final listExists = vm.lists.any((list) => list.id == targetListId);
+      if (!listExists && vm.lists.isNotEmpty) {
+        targetListId = vm.lists.first.id;
+      }
+    } else if (vm.lists.isNotEmpty) {
+       targetListId = vm.lists.first.id;
+    }
+
+    if (targetListId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opret venligst en liste først!")));
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder( 
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text("Ny Opgave"),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: targetListId,
+                    decoration: const InputDecoration(labelText: "Tilføj til liste"),
+                    items: vm.lists.map((list) => DropdownMenuItem(
+                      value: list.id,
+                      child: Text(list.title),
+                    )).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => targetListId = val);
+                        vm.setActiveList(val); 
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: titleController, 
+                    autofocus: true,
+                    decoration: const InputDecoration(labelText: "Titel", hintText: "Hvad skal laves?"),
+                  ),
+                  const SizedBox(height: 15),
+                  CategorySelector(
+                    initialCategory: selectedCategory,
+                    onChanged: (val) => selectedCategory = val,
+                  ),
+                  const SizedBox(height: 15),
+                  PrioritySelector(
+                    initialPriority: selectedPriority,
+                    onChanged: (val) => setState(() => selectedPriority = val),
+                  ),
+                  const SizedBox(height: 15),
+                  DateSelector(
+                    selectedDate: selectedDate,
+                    onDateChanged: (date) => setState(() => selectedDate = date),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: descController,
+                    decoration: const InputDecoration(labelText: "Noter/Beskrivelse"),
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
+              ElevatedButton(onPressed: () {
+                if (titleController.text.isNotEmpty && targetListId != null) {
+                  vm.setActiveList(targetListId!);
+                  vm.addTask(
+                    titleController.text,
+                    category: selectedCategory,
+                    description: descController.text,
+                    dueDate: selectedDate, 
+                    priority: selectedPriority,
+                  );
+                  Navigator.pop(context);
+                }
+              }, child: const Text("Tilføj")),
+            ],
+          );
+        }
       ),
     );
   }

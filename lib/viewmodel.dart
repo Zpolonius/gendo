@@ -8,6 +8,7 @@ import 'repository.dart';
 enum TimerStatus { idle, working, finishedWork, onBreak }
 
 class AppViewModel extends ChangeNotifier {
+  
   TaskRepository _repository;
   
   // --- STATE ---
@@ -35,7 +36,9 @@ class AppViewModel extends ChangeNotifier {
   void updateRepository(TaskRepository repository) {
     _repository = repository;
     loadData();
+  
   }
+  
 
   // Getters (Uændret)
   List<TodoList> get lists => _lists;
@@ -64,18 +67,19 @@ class AppViewModel extends ChangeNotifier {
   Future<void> loadData() async {
     _isLoading = true;
     notifyListeners();
-    
     try {
-      // 1. TJEK INVITATIONER FØRST (Hvis vi er logget ind)
+      // 1. SELV-HEALING OG INVITATIONER
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && user.email != null) {
-        // Dette sikrer at hvis jeg lige er blevet inviteret mens jeg var offline,
-        // så får jeg adgang nu.
+        // Fiks manglende bruger-dokument
+        await _repository.ensureUserDocument(user.email!);
+        
+        // Tjek invitationer
         await _repository.checkPendingInvites(user.email!);
       }
 
-      // 2. Hent alt data (Nu inklusiv eventuelle nye lister)
-      final results = await Future.wait([
+      // 2. Hent alt data 
+       final results = await Future.wait([
         _repository.getLists(),
         _repository.getCategories(),
         _repository.getThemePreference(),
@@ -108,6 +112,22 @@ class AppViewModel extends ChangeNotifier {
     
     _isLoading = false;
     notifyListeners();
+  }
+    
+    Future<List<Map<String, String>>> getListMembers(String listId) async {
+    // Find listen i vores state
+    try {
+      final list = _lists.firstWhere((l) => l.id == listId);
+      return await _repository.getMembersDetails(list.memberIds);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<void> removeMember(String listId, String userId) async {
+    await _repository.removeUserFromList(listId, userId);
+    // Vi genindlæser data for at opdatere listen
+    await loadData();
   }
 
   // ... (Resten af metoderne er uændrede fra din tidligere fil. Kopier dem ind her: createList, addTask, timer logik osv.)
