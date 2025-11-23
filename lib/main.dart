@@ -13,7 +13,7 @@ import 'widgets/app_drawer.dart';
 
 import 'screens/pomodoro_screen.dart';
 import 'screens/todo_list_screen.dart';
-import 'screens/gen_ui_screen.dart';
+// ikke nødvendig nu. import 'screens/gen_ui_screen.dart';
 
 
 // import 'firebase_options.dart'; // SIKR DIG AT DENNE FIL ER OPRETTET MED 'flutterfire configure'
@@ -170,7 +170,7 @@ class _MainScreenState extends State<MainScreen> {
 
     final List<Widget> screens = [
       const PomodoroScreen(),
-      const GenUiScreen(),
+      //const GenUiScreen(),
       TodoListScreen(onSwitchTab: _switchTab),
     ];
 
@@ -208,7 +208,7 @@ class _MainScreenState extends State<MainScreen> {
         elevation: 0.0,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Fokus'),
-          NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'GenDo'),
+          //NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'GenDo'),
           NavigationDestination(icon: Icon(Icons.check_circle_outline), selectedIcon: Icon(Icons.check_circle), label: 'Opgaver'),
         ],
       ),
