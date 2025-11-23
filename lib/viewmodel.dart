@@ -141,8 +141,6 @@ class AppViewModel extends ChangeNotifier {
     await _repository.inviteUserByEmail(listId, email);
   }
 
-  // HER ER DE MANGLENDE METODER TILBAGE:
-  
   Future<List<Map<String, String>>> getListMembers(String listId) async {
     try {
       final list = _lists.firstWhere((l) => l.id == listId);
@@ -154,7 +152,7 @@ class AppViewModel extends ChangeNotifier {
 
   Future<void> removeMember(String listId, String userId) async {
     await _repository.removeUserFromList(listId, userId);
-    await loadData(); // Genindlæs for at opdatere
+    await loadData(); 
   }
 
   Future<void> deleteList(String listId) async {
@@ -169,8 +167,9 @@ class AppViewModel extends ChangeNotifier {
 
   // --- OPGAVER ---
 
-  Future<String> addTask(String title, {String category = 'Generelt', String description = '', TaskPriority priority = TaskPriority.medium, DateTime? dueDate}) async {
-    if (_activeListId == null) return '';
+  Future<String> addTask(String title, {String category = 'Generelt', String description = '', TaskPriority priority = TaskPriority.medium, DateTime? dueDate, String? listId}) async {
+    final targetListId = listId ?? _activeListId;
+    if (targetListId == null) return '';
 
     if (!_categories.contains(category)) await addNewCategory(category);
     
@@ -183,12 +182,12 @@ class AppViewModel extends ChangeNotifier {
       priority: priority,
       dueDate: dueDate,
       createdAt: DateTime.now(),
-      listId: _activeListId!, 
+      listId: targetListId, 
     );
 
     await _repository.addTask(newTask);
-    if (_tasksByList[_activeListId!] == null) _tasksByList[_activeListId!] = [];
-    _tasksByList[_activeListId!]!.add(newTask);
+    if (_tasksByList[targetListId] == null) _tasksByList[targetListId] = [];
+    _tasksByList[targetListId]!.add(newTask);
     notifyListeners();
     
     return newId;
@@ -208,16 +207,36 @@ class AppViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> updateTaskDetails(TodoTask task) async {
-    await _repository.updateTask(task);
-    final list = _tasksByList[task.listId];
-    if (list != null) {
-      final index = list.indexWhere((t) => t.id == task.id);
-      if (index != -1) {
-        list[index] = task;
-        notifyListeners();
+  // OPDATERET: Kan nu håndtere flytning af opgave til ny liste
+  Future<void> updateTaskDetails(TodoTask task, {String? oldListId}) async {
+    // Hvis oldListId er angivet og forskellig fra den nye, så er det en flytning
+    if (oldListId != null && oldListId != task.listId) {
+      // 1. Slet fra gammel liste i DB
+      await _repository.deleteTask(oldListId, task.id);
+      // 2. Opret i ny liste i DB (med samme ID og data)
+      await _repository.addTask(task);
+      
+      // 3. Opdater lokalt state
+      // Fjern fra gammel liste
+      if (_tasksByList.containsKey(oldListId)) {
+        _tasksByList[oldListId]!.removeWhere((t) => t.id == task.id);
+      }
+      // Tilføj til ny liste
+      if (_tasksByList[task.listId] == null) _tasksByList[task.listId] = [];
+      _tasksByList[task.listId]!.add(task);
+
+    } else {
+      // Almindelig opdatering i samme liste
+      await _repository.updateTask(task);
+      final list = _tasksByList[task.listId];
+      if (list != null) {
+        final index = list.indexWhere((t) => t.id == task.id);
+        if (index != -1) {
+          list[index] = task;
+        }
       }
     }
+    notifyListeners();
   }
 
   Future<void> deleteTask(String taskId) async {

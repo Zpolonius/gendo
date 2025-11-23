@@ -21,13 +21,14 @@ class TaskDetailScreen extends StatefulWidget {
 
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
   
-  // --- DIALOG: REDIGER ---
   void _showEditDialog(BuildContext context, AppViewModel vm, TodoTask currentTask) {
     final titleController = TextEditingController(text: currentTask.title);
     final descController = TextEditingController(text: currentTask.description);
     String selectedCategory = currentTask.category;
     DateTime? selectedDate = currentTask.dueDate;
     TaskPriority selectedPriority = currentTask.priority;
+    // Gem den gamle liste ID så vi kan detektere skift
+    String selectedListId = currentTask.listId;
 
     showDialog(
       context: context,
@@ -44,6 +45,21 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     controller: titleController,
                     decoration: const InputDecoration(labelText: "Titel"),
                   ),
+                  const SizedBox(height: 15),
+                  
+                  // NYT: Vælg Liste
+                  DropdownButtonFormField<String>(
+                    value: selectedListId,
+                    decoration: const InputDecoration(labelText: "Liste"),
+                    items: vm.lists.map((list) => DropdownMenuItem(
+                      value: list.id,
+                      child: Text(list.title),
+                    )).toList(),
+                    onChanged: (val) {
+                      if (val != null) setState(() => selectedListId = val);
+                    },
+                  ),
+                  
                   const SizedBox(height: 15),
                   CategorySelector(
                     initialCategory: selectedCategory,
@@ -79,8 +95,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       description: descController.text,
                       dueDate: selectedDate,
                       priority: selectedPriority,
+                      listId: selectedListId, // Opdateret liste ID
                     );
-                    vm.updateTaskDetails(updatedTask);
+                    // Sender gammel listId med, så ViewModel ved det er en flytning
+                    vm.updateTaskDetails(updatedTask, oldListId: currentTask.listId);
                     Navigator.pop(ctx);
                   }
                 },
@@ -93,7 +111,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
-  // --- DIALOG: SLET (NY - TRIN 2) ---
+  // ... (Dialogs som før) ...
   void _showDeleteDialog(BuildContext context, AppViewModel vm) {
     showDialog(
       context: context,
@@ -104,10 +122,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
           TextButton(
             onPressed: () {
-              // Slet opgaven og gå tilbage til listen
               vm.deleteTask(widget.taskId);
-              Navigator.pop(ctx); // Luk dialog
-              Navigator.pop(context); // Gå tilbage fra detalje siden
+              Navigator.pop(ctx);
+              Navigator.pop(context);
             }, 
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text("Slet"),
@@ -128,19 +145,22 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateFormatter = DateFormat('EEE, d MMM yyyy');
-    
     final vm = context.watch<AppViewModel>();
-    // Fallback til initialTask hvis opgaven slettes mens man kigger på den (før navigation)
+    
     final task = vm.allTasks.firstWhere((t) => t.id == widget.taskId, orElse: () => widget.initialTask);
+    
+    // Find navnet på listen
+    String listName = "Ukendt liste";
+    try {
+      listName = vm.lists.firstWhere((l) => l.id == task.listId).title;
+    } catch (e) { /* Liste ikke fundet */ }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         actions: [
-          // --- SLET KNAP I APPBAR ---
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
             tooltip: "Slet opgave",
@@ -149,24 +169,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         ],
       ),
       
-      // Bottom Navigation Bar med knapperne
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: theme.scaffoldBackgroundColor,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            )
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
         ),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // GÅ I GANG KNAP
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -174,21 +186,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   onPressed: widget.onStartTask,
                   icon: const Icon(Icons.play_arrow_rounded, size: 28),
                   label: const Text("GÅ I GANG", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shadowColor: theme.colorScheme.primary.withOpacity(0.4),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: theme.colorScheme.primary, foregroundColor: Colors.white, elevation: 4, shadowColor: theme.colorScheme.primary.withOpacity(0.4), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                 ),
               ),
               const SizedBox(height: 20),
-              // HANDLINGS KNAPPER (Rediger, Udfør, Luk)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // REDIGER
                   Expanded(
                     child: TextButton.icon(
                       onPressed: () => _showEditDialog(context, vm, task),
@@ -197,25 +201,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       style: TextButton.styleFrom(foregroundColor: theme.colorScheme.onSurface.withOpacity(0.7)),
                     ),
                   ),
-                  // UDFØR / GENÅBN
                   Expanded(
                     child: TextButton.icon(
                       onPressed: () => vm.toggleTask(task.id),
-                      icon: Icon(
-                        task.isCompleted ? Icons.check_circle : Icons.check_circle_outline, 
-                        size: 20,
-                        color: task.isCompleted ? Colors.green : theme.colorScheme.primary,
-                      ),
-                      label: Text(
-                        task.isCompleted ? "Genåbn" : "Fuldfør",
-                        style: TextStyle(
-                          color: task.isCompleted ? Colors.green : theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold
-                        ),
-                      ),
+                      icon: Icon(task.isCompleted ? Icons.check_circle : Icons.check_circle_outline, size: 20, color: task.isCompleted ? Colors.green : theme.colorScheme.primary),
+                      label: Text(task.isCompleted ? "Genåbn" : "Udfør", style: TextStyle(color: task.isCompleted ? Colors.green : theme.colorScheme.primary, fontWeight: FontWeight.bold)),
                     ),
                   ),
-                  // LUK
                   Expanded(
                     child: TextButton.icon(
                       onPressed: () => Navigator.pop(context),
@@ -236,24 +228,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status skilt hvis færdig
             if (task.isCompleted)
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.check, size: 16, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Text("Udført", style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold)),
-                  ],
-                ),
+                decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.withOpacity(0.3))),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.check, size: 16, color: Colors.green), const SizedBox(width: 8), Text("Udført", style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold))]),
               ),
 
             Hero(
@@ -262,49 +242,34 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 type: MaterialType.transparency,
                 child: Text(
                   task.title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurface,
-                    decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                    decorationColor: Colors.grey,
-                  ),
+                  style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface, decoration: task.isCompleted ? TextDecoration.lineThrough : null, decorationColor: Colors.grey),
                 ),
               ),
             ),
+            const SizedBox(height: 10),
+            
+            // --- NYT: LISTE NAVN ---
+            Row(
+              children: [
+                Icon(Icons.list, size: 18, color: Colors.grey[600]),
+                const SizedBox(width: 8),
+                Text(listName, style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500)),
+              ],
+            ),
+            
             const SizedBox(height: 20),
             
             Row(
               children: [
-                Chip(
-                  label: Text(task.category),
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                  labelStyle: TextStyle(color: theme.colorScheme.primary),
-                  side: BorderSide.none,
-                ),
+                Chip(label: Text(task.category), backgroundColor: theme.colorScheme.primary.withOpacity(0.1), labelStyle: TextStyle(color: theme.colorScheme.primary), side: BorderSide.none),
                 const SizedBox(width: 10),
-                Chip(
-                  avatar: Icon(Icons.pending_actions_outlined, size: 16, color: _getPriorityColor(task.priority)),
-                  label: Text(task.priority.name.toUpperCase()),
-                  backgroundColor: _getPriorityColor(task.priority).withOpacity(0.1),
-                  labelStyle: TextStyle(color: _getPriorityColor(task.priority), fontWeight: FontWeight.bold),
-                  side: BorderSide.none,
-                ),
+                Chip(avatar: Icon(Icons.flag, size: 16, color: _getPriorityColor(task.priority)), label: Text(task.priority.name.toUpperCase()), backgroundColor: _getPriorityColor(task.priority).withOpacity(0.1), labelStyle: TextStyle(color: _getPriorityColor(task.priority), fontWeight: FontWeight.bold), side: BorderSide.none),
               ],
             ),
             const SizedBox(height: 30),
 
             if (task.dueDate != null) ...[
-              Row(
-                children: [
-                  Icon(Icons.calendar_month_outlined, color: Colors.grey[500]),
-                  const SizedBox(width: 10),
-                  Text(
-                    "Deadline: ${dateFormatter.format(task.dueDate!)}",
-                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
+              Row(children: [Icon(Icons.calendar_month_outlined, color: Colors.grey[500]), const SizedBox(width: 10), Text("Deadline: ${dateFormatter.format(task.dueDate!)}", style: TextStyle(fontSize: 16, color: Colors.grey[600]))]),
               const SizedBox(height: 30),
             ],
 
@@ -313,18 +278,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200),
-              ),
-              child: Text(
-                task.description.isEmpty ? "Ingen noter tilføjet." : task.description,
-                style: TextStyle(fontSize: 16, height: 1.5, color: theme.colorScheme.onSurface.withOpacity(0.8)),
-              ),
+              decoration: BoxDecoration(color: theme.colorScheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: theme.brightness == Brightness.dark ? Colors.white10 : Colors.grey.shade200)),
+              child: Text(task.description.isEmpty ? "Ingen noter tilføjet." : task.description, style: TextStyle(fontSize: 16, height: 1.5, color: theme.colorScheme.onSurface.withOpacity(0.8))),
             ),
-            
-            const SizedBox(height: 100),
+            const SizedBox(height: 20),
           ],
         ),
       ),
