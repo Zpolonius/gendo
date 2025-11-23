@@ -21,6 +21,7 @@ class TaskDetailScreen extends StatefulWidget {
 
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
   
+  // --- DIALOG: REDIGER ---
   void _showEditDialog(BuildContext context, AppViewModel vm, TodoTask currentTask) {
     final titleController = TextEditingController(text: currentTask.title);
     final descController = TextEditingController(text: currentTask.description);
@@ -92,6 +93,30 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
+  // --- DIALOG: SLET (NY - TRIN 2) ---
+  void _showDeleteDialog(BuildContext context, AppViewModel vm) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Slet Opgave?"),
+        content: const Text("Er du sikker på, at du vil slette denne opgave? Det kan ikke fortrydes."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
+          TextButton(
+            onPressed: () {
+              // Slet opgaven og gå tilbage til listen
+              vm.deleteTask(widget.taskId);
+              Navigator.pop(ctx); // Luk dialog
+              Navigator.pop(context); // Gå tilbage fra detalje siden
+            }, 
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Slet"),
+          ),
+        ],
+      ),
+    );
+  }
+
   Color _getPriorityColor(TaskPriority p) {
     switch(p) {
       case TaskPriority.high: return Colors.redAccent;
@@ -107,16 +132,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     final dateFormatter = DateFormat('EEE, d MMM yyyy');
     
     final vm = context.watch<AppViewModel>();
-    // Fallback til initialTask hvis opgaven slettes mens man kigger på den
+    // Fallback til initialTask hvis opgaven slettes mens man kigger på den (før navigation)
     final task = vm.allTasks.firstWhere((t) => t.id == widget.taskId, orElse: () => widget.initialTask);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      // AppBar er nu renset for knapper
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+        actions: [
+          // --- SLET KNAP I APPBAR ---
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+            tooltip: "Slet opgave",
+            onPressed: () => _showDeleteDialog(context, vm),
+          ),
+        ],
       ),
-      // Vi bruger bottomNavigationBar til knapperne i bunden
+      
+      // Bottom Navigation Bar med knapperne
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
@@ -197,6 +230,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           ),
         ),
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
@@ -290,7 +324,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               ),
             ),
             
-            const SizedBox(height: 20), // Lidt luft i bunden af indholdet
+            const SizedBox(height: 100),
           ],
         ),
       ),
