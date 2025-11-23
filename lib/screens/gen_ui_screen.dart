@@ -35,7 +35,7 @@ class _GenUiScreenState extends State<GenUiScreen> {
             decoration: InputDecoration(
               hintText: "F.eks. 'Lær at spille guitar'",
               filled: true,
-              fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+              fillColor: isDark ? Colors.white : Colors.white,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
               contentPadding: const EdgeInsets.all(20),
             ),
@@ -57,7 +57,7 @@ class _GenUiScreenState extends State<GenUiScreen> {
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 elevation: 4,
-                shadowColor: theme.colorScheme.primary.withOpacity(0.4),
+                shadowColor: theme.colorScheme.primary.withValues(alpha: 0.4),
               ),
               child: vm.isLoading 
                 ? const CircularProgressIndicator(color: Colors.white) 
