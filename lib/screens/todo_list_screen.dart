@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart'; // VIGTIGT: Denne manglede for DateFormat
+import 'package:intl/intl.dart';
 import '../models.dart';
-import '../models/todo_list.dart'; // VIGTIGT: For TodoList klassen
+import '../models/todo_list.dart';
 import '../viewmodel.dart';
 import 'task_detail_screen.dart';
 import '../widgets/category_selector.dart';
@@ -34,14 +34,13 @@ class _TodoListScreenState extends State<TodoListScreen> {
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisSize: MainAxisSize.min, // Vigtigt for at Column ikke fylder hele højden
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Hvis menuen er åben, vis de to knapper
           if (_isFabExpanded) ...[
             FloatingActionButton.extended(
               heroTag: 'add_list_btn',
               onPressed: () {
-                setState(() => _isFabExpanded = false); // Luk menu efter valg
+                setState(() => _isFabExpanded = false);
                 _showCreateListDialog(context, vm);
               },
               backgroundColor: theme.colorScheme.surface,
@@ -53,7 +52,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
             FloatingActionButton.extended(
               heroTag: 'add_task_btn',
               onPressed: () {
-                setState(() => _isFabExpanded = false); // Luk menu efter valg
+                setState(() => _isFabExpanded = false);
                 _showAddDialog(context, vm);
               },
               backgroundColor: theme.colorScheme.primary,
@@ -64,7 +63,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
             const SizedBox(height: 16),
           ],
 
-          // Hovedknappen (Åbn/Luk)
           FloatingActionButton(
             heroTag: 'main_fab',
             onPressed: () {
@@ -82,15 +80,13 @@ class _TodoListScreenState extends State<TodoListScreen> {
         ],
       ),
       
-      // Klik på baggrunden for at lukke menuen (valgfrit men god UX)
       body: GestureDetector(
         onTap: () {
           if (_isFabExpanded) setState(() => _isFabExpanded = false);
         },
-        behavior: HitTestBehavior.translucent, // Sikrer at taps registreres selv på tomme områder
+        behavior: HitTestBehavior.translucent,
         child: Column(
           children: [
-            // --- HEADER: MINE LISTER ---
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
               child: Align(
@@ -107,7 +103,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
               ),
             ),
 
-            // --- LISTE OVER LISTER ---
             Expanded(
               child: vm.lists.isEmpty 
                 ? Center(
@@ -226,7 +221,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
     );
   }
 
-  // --- HELPERS & DIALOGS ---
+  // --- DIALOG METODER (Nu en del af State-klassen) ---
 
   void _openTaskDetail(BuildContext context, TodoTask task, AppViewModel vm) {
     Navigator.push(
@@ -343,6 +338,10 @@ class _TodoListScreenState extends State<TodoListScreen> {
     TaskPriority selectedPriority = TaskPriority.medium;
     
     String? targetListId = vm.activeListId ?? (vm.lists.isNotEmpty ? vm.lists.first.id : null);
+    final listExists = vm.lists.any((list) => list.id == targetListId);
+    if (!listExists && vm.lists.isNotEmpty) {
+      targetListId = vm.lists.first.id;
+    }
 
     if (targetListId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opret venligst en liste først!")));
@@ -428,7 +427,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
   }
 }
 
-// Genbruger TaskCard, men tilføjer en 'compact' mode til visning i lister
 class _TaskCard extends StatelessWidget {
   final TodoTask task;
   final VoidCallback onTap;
