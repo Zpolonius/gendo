@@ -29,7 +29,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      // --- SPEED DIAL FAB (Trin 1 implementation) ---
+      // --- SPEED DIAL FAB ---
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -79,7 +79,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
         ],
       ),
       
-      // Klik på baggrunden for at lukke menuen
       body: GestureDetector(
         onTap: () {
           if (_isFabExpanded) setState(() => _isFabExpanded = false);
@@ -129,7 +128,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
                       itemCount: vm.lists.length,
                       itemBuilder: (ctx, i) {
                         final list = vm.lists[i];
-                        // Vi bruger en ny widget til hvert kort for at styre input-feltet
+                        // Vi bruger den statefulde widget til hvert kort (for input feltet)
                         return _TodoListCard(
                           list: list, 
                           vm: vm,
@@ -183,7 +182,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
     
     String? targetListId = vm.activeListId ?? (vm.lists.isNotEmpty ? vm.lists.first.id : null);
 
-    // Sikkerhedstjek
     if (targetListId != null) {
       final listExists = vm.lists.any((list) => list.id == targetListId);
       if (!listExists && vm.lists.isNotEmpty) {
@@ -277,8 +275,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
   }
 }
 
-// --- NY STATEFUL WIDGET TIL HVERT LISTE-KORT ---
-// Dette gør at vi kan have et input-felt i hver liste
+// --- LISTE KORT WIDGET ---
 class _TodoListCard extends StatefulWidget {
   final TodoList list;
   final AppViewModel vm;
@@ -306,52 +303,20 @@ class _TodoListCardState extends State<_TodoListCard> {
   void _addTaskToList() {
     final text = _quickAddController.text.trim();
     if (text.isNotEmpty) {
-      // VIGTIGT: Sæt den aktive liste til DENNE liste før vi tilføjer
       widget.vm.setActiveList(widget.list.id);
       widget.vm.addTask(text);
       _quickAddController.clear();
     }
   }
 
-  // --- DIALOGS (Flyttet hertil for adgang i kortet) ---
   void _showInviteDialog(BuildContext context) {
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text("Inviter til '${widget.list.title}'"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Indtast e-mailen på den bruger, du vil invitere:", style: TextStyle(fontSize: 14, color: Colors.grey)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: "E-mail",
-                prefixIcon: Icon(Icons.email_outlined),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                try {
-                  await widget.vm.inviteUser(widget.list.id, controller.text.trim());
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invitation sendt!")));
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fejl: $e"), backgroundColor: Colors.red));
-                }
-              }
-            }, 
-            child: const Text("Inviter")
-          ),
-        ],
+        content: Column(mainAxisSize: MainAxisSize.min, children: [const Text("Indtast e-mailen på den bruger, du vil invitere:", style: TextStyle(fontSize: 14, color: Colors.grey)), const SizedBox(height: 10), TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: "E-mail", prefixIcon: Icon(Icons.email_outlined)))]),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")), ElevatedButton(onPressed: () async { if (controller.text.isNotEmpty) { try { await widget.vm.inviteUser(widget.list.id, controller.text.trim()); Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invitation sendt!"))); } catch (e) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fejl: $e"), backgroundColor: Colors.red)); } } }, child: const Text("Inviter"))],
       ),
     );
   }
@@ -362,17 +327,7 @@ class _TodoListCardState extends State<_TodoListCard> {
       builder: (ctx) => AlertDialog(
         title: const Text("Slet Liste?"),
         content: Text("Er du sikker på, at du vil slette '${widget.list.title}' og alle dens opgaver? Dette kan ikke fortrydes."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
-          TextButton(
-            onPressed: () {
-              widget.vm.deleteList(widget.list.id);
-              Navigator.pop(ctx);
-            }, 
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Slet"),
-          ),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")), TextButton(onPressed: () { widget.vm.deleteList(widget.list.id); Navigator.pop(ctx); }, style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text("Slet"))],
       ),
     );
   }
@@ -405,10 +360,7 @@ class _TodoListCardState extends State<_TodoListCard> {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.withOpacity(0.2)),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.withOpacity(0.2))),
       clipBehavior: Clip.antiAlias,
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -418,22 +370,9 @@ class _TodoListCardState extends State<_TodoListCard> {
           },
           backgroundColor: theme.colorScheme.surface,
           collapsedBackgroundColor: theme.colorScheme.surface,
-          title: Text(
-            widget.list.title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          subtitle: Text(
-            "${listTasks.length} opgaver • ${widget.list.memberIds.length} medlemmer",
-            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-          ),
-          leading: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.list, color: theme.colorScheme.primary, size: 20),
-          ),
+          title: Text(widget.list.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          subtitle: Text("${listTasks.length} opgaver • ${widget.list.memberIds.length} medlemmer", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+          leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.1), shape: BoxShape.circle), child: Icon(Icons.list, color: theme.colorScheme.primary, size: 20)),
           trailing: PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: Colors.grey),
             onSelected: (value) {
@@ -441,39 +380,16 @@ class _TodoListCardState extends State<_TodoListCard> {
               if (value == 'delete') _showDeleteListDialog(context);
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'invite',
-                child: Row(
-                  children: [
-                    Icon(Icons.person_add_outlined, size: 20),
-                    SizedBox(width: 8),
-                    Text("Inviter medlem"),
-                  ],
-                ),
-              ),
-              if (isOwner)
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text("Slet liste", style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
+              const PopupMenuItem(value: 'invite', child: Row(children: [Icon(Icons.person_add_outlined, size: 20), SizedBox(width: 8), Text("Inviter medlem")])),
+              if (isOwner) const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: Colors.red), SizedBox(width: 8), Text("Slet liste", style: TextStyle(color: Colors.red))])),
             ],
           ),
           children: [
-            // --- INPUT FELT TIL OPGAVER ---
+            // --- INPUT FELT ---
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: Container(
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200),
-                ),
+                decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200)),
                 child: TextField(
                   controller: _quickAddController,
                   textInputAction: TextInputAction.done,
@@ -483,30 +399,19 @@ class _TodoListCardState extends State<_TodoListCard> {
                     hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                     border: InputBorder.none,
                     prefixIcon: const Icon(Icons.add, color: Colors.grey),
-                    suffixIcon: IconButton(
-                      // Her er SAVE ikonet
-                      icon: Icon(Icons.save, color: theme.colorScheme.primary),
-                      onPressed: _addTaskToList,
-                      tooltip: "Gem opgave",
-                    ),
+                    suffixIcon: IconButton(icon: Icon(Icons.save, color: theme.colorScheme.primary), onPressed: _addTaskToList, tooltip: "Gem opgave"),
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
               ),
             ),
-
-            if (listTasks.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text("Ingen opgaver endnu.", style: TextStyle(color: Colors.grey[400], fontStyle: FontStyle.italic)),
-              )
-            else
-              ...listTasks.map((task) => _TaskCard(
-                task: task, 
-                onTap: () => _openTaskDetail(context, task),
-                onToggle: () => widget.vm.toggleTask(task.id),
-                compact: true,
-              )),
+            if (listTasks.isEmpty) Padding(padding: const EdgeInsets.all(16.0), child: Text("Ingen opgaver endnu.", style: TextStyle(color: Colors.grey[400], fontStyle: FontStyle.italic)))
+            else ...listTasks.map((task) => _TaskCard(
+                  task: task, 
+                  onTap: () => _openTaskDetail(context, task),
+                  onToggle: () => widget.vm.toggleTask(task.id),
+                  compact: true,
+                )),
             const SizedBox(height: 8),
           ],
         ),
@@ -556,11 +461,13 @@ class _TaskCard extends StatelessWidget {
         ),
         child: ListTile(
           contentPadding: EdgeInsets.symmetric(horizontal: compact ? 8 : 16, vertical: compact ? 0 : 12),
-          leading: IconButton(
-            icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined),
-            color: task.isCompleted ? Colors.green : Colors.grey,
-            onPressed: onToggle,
-          ),
+          // --- TRIN 4: FLYT FULDFØR KNAP TIL HØJRE (TRAILING) ---
+          // Før: leading: IconButton(...)
+          // Nu: trailing: IconButton(...)
+          
+          // Vi fjerner leading (eller bruger den til noget andet, f.eks. prioritet farve-stribe, hvis vi ville)
+          // Men her fjerner vi den bare for at gøre plads til teksten.
+          
           title: Text(
             task.title, 
             maxLines: 1,
@@ -601,6 +508,13 @@ class _TaskCard extends StatelessWidget {
                 ],
               ),
             ],
+          ),
+          
+          // --- HER ER DEN NYE PLACERING ---
+          trailing: IconButton(
+            icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined),
+            color: task.isCompleted ? Colors.green : Colors.grey,
+            onPressed: onToggle,
           ),
         ),
       ),
