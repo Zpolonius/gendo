@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../viewmodel.dart';
 
+
 class PomodoroScreen extends StatefulWidget {
   const PomodoroScreen({super.key});
 
@@ -39,7 +40,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
 
   void _showCompletionDialog(BuildContext context, AppViewModel vm) {
     setState(() => _isDialogShowing = true);
-    // Hvis pauser er slået fra i indstillinger, spørger vi ikke om "pause", men bare om opgaven er færdig.
     final breaksEnabled = vm.pomodoroSettings.enableBreaks;
     
     showDialog(
@@ -99,11 +99,19 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
         ? (vm.pomodoroDurationTotal > 600 ? "LANG PAUSE" : "PAUSE")
         : "FOKUS";
 
+    // Hent alle aktive opgaver på tværs af lister
+    final activeTasks = vm.allTasks.where((t) => !t.isCompleted).toList();
+
+    // Valider selection
+    String? validSelectedTaskId = vm.selectedTaskId;
+    if (validSelectedTaskId != null && !activeTasks.any((t) => t.id == validSelectedTaskId)) {
+      validSelectedTaskId = null;
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          // Chips er fjernet for et renere look!
           const SizedBox(height: 20),
 
           if (vm.isOnBreak) ...[
@@ -119,14 +127,14 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
           ],
 
           SizedBox(
-            height: 300, // Lidt større nu hvor vi har plads
+            height: 300,
             width: 300,
             child: Stack(
               fit: StackFit.expand,
               children: [
                 CircularProgressIndicator(
                   value: vm.progress,
-                  strokeWidth: 20, // Tykkere ring
+                  strokeWidth: 20,
                   backgroundColor: isDark ? Colors.white10 : Colors.grey[200],
                   valueColor: AlwaysStoppedAnimation<Color>(timerColor!),
                   strokeCap: StrokeCap.round,
@@ -137,7 +145,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                     Text(
                       _formatTime(vm.pomodoroTimeLeft),
                       style: GoogleFonts.roboto(
-                        fontSize: 64, // Større tekst
+                        fontSize: 64,
                         fontWeight: FontWeight.bold,
                         color: isDark ? Colors.white : Colors.black87
                       ),
@@ -160,6 +168,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
           ),
           const SizedBox(height: 60),
 
+          // --- OPGAVE VÆLGER ---
           if (!vm.isTimerRunning && !vm.isOnBreak)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -170,13 +179,58 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: vm.selectedTaskId,
+                  value: validSelectedTaskId,
                   isExpanded: true,
+                  itemHeight: null, // Tillad dynamisk højde for vores custom items
                   dropdownColor: theme.colorScheme.surface,
                   hint: Text("Vælg en opgave at fokusere på", style: TextStyle(color: Colors.grey[500])),
                   items: [
-                    DropdownMenuItem(value: null, child: Text("Ingen specifik opgave", style: TextStyle(color: theme.colorScheme.onSurface))),
-                    ...vm.allTasks.where((t) => !t.isCompleted).map((task) => DropdownMenuItem(value: task.id, child: Text(task.title, style: TextStyle(color: theme.colorScheme.onSurface)))).toList(),
+                    DropdownMenuItem(
+                      value: null, 
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text("Ingen specifik opgave", style: TextStyle(color: theme.colorScheme.onSurface)),
+                      )
+                    ),
+                    ...activeTasks.map((task) {
+                      // Find listens navn
+                      String listName = "Ukendt liste";
+                      try {
+                        final list = vm.lists.firstWhere((l) => l.id == task.listId);
+                        listName = list.title;
+                      } catch (e) {
+                        // Liste ikke fundet
+                      }
+
+                      return DropdownMenuItem(
+                        value: task.id,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                task.title, 
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface, 
+                                  fontWeight: FontWeight.w500
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                listName, 
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.5), 
+                                  fontSize: 12, 
+                                  fontStyle: FontStyle.italic
+                                )
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ],
                   onChanged: (id) => vm.setSelectedTask(id),
                 ),

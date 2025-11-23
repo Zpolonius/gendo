@@ -12,48 +12,18 @@ class FirestoreService implements TaskRepository {
   CollectionReference get _listsCollection => _db.collection('lists');
   DocumentReference get _userDoc => _db.collection('users').doc(_userId);
 
-  // --- INVITER BRUGER (HÅNDTERER BEGGE SCENARIER) ---
-  @override
-  Future<void> inviteUserByEmail(String listId, String email) async {
-    // 1. Tjek om brugeren findes i systemet
-    final userSnapshot = await _db.collection('users')
-        .where('email', isEqualTo: email)
-        .limit(1)
-        .get();
+  // --- HER RETTER DU STANDARD KATEGORIERNE ---
+  // Disse vil altid blive vist for alle brugere.
+  static const List<String> _defaultCategories = [
+    'Generelt',
+    'Arbejde',
+    'Personlig',
+    'Studie',
+    'Indkøb',
+    'Udvikling'
+  ];
 
-    if (userSnapshot.docs.isNotEmpty) {
-      // SCENARIE 1: Brugeren findes -> Tilføj ID direkte
-      final userIdToInvite = userSnapshot.docs.first.id;
-      await _listsCollection.doc(listId).update({
-        'memberIds': FieldValue.arrayUnion([userIdToInvite])
-      });
-    } else {
-      // SCENARIE 2: Brugeren findes ikke -> Tilføj til pendingEmails
-      // Så fanger vi dem, når de opretter sig senere (via checkPendingInvites)
-      await _listsCollection.doc(listId).update({
-        'pendingEmails': FieldValue.arrayUnion([email])
-      });
-    }
-  }
-
-  // --- TJEK FOR VENTENDE INVITATIONER ---
-  @override
-  Future<void> checkPendingInvites(String email) async {
-    // Find alle lister, hvor min email står i 'pendingEmails'
-    final snapshot = await _listsCollection
-        .where('pendingEmails', arrayContains: email)
-        .get();
-
-    // For hver liste: "Claim" medlemskabet
-    for (var doc in snapshot.docs) {
-      await doc.reference.update({
-        'memberIds': FieldValue.arrayUnion([_userId]), // Tilføj mig som medlem
-        'pendingEmails': FieldValue.arrayRemove([email]) // Fjern min email fra ventelisten
-      });
-    }
-  }
-
-  // ... (Resten af metoderne er uændrede, men skal være her for at opfylde kontrakten) ...
+  // --- LISTER ---
 
   @override
   Future<List<TodoList>> getLists() async {
@@ -75,17 +45,46 @@ class FirestoreService implements TaskRepository {
     final doc = await _listsCollection.doc(listId).get();
     if (doc.exists) {
       final data = doc.data() as Map<String, dynamic>;
-      if (data['ownerId'] == _userId) await _listsCollection.doc(listId).delete();
+      if (data['ownerId'] == _userId) {
+        await _listsCollection.doc(listId).delete();
+      }
+    }
+  }
+
+  @override
+  Future<void> inviteUserByEmail(String listId, String email) async {
+    final userSnapshot = await _db.collection('users').where('email', isEqualTo: email).limit(1).get();
+    if (userSnapshot.docs.isNotEmpty) {
+      final userIdToInvite = userSnapshot.docs.first.id;
+      await _listsCollection.doc(listId).update({'memberIds': FieldValue.arrayUnion([userIdToInvite])});
+    } else {
+      // Gem invitation hvis bruger ikke findes
+      await _listsCollection.doc(listId).update({'pendingEmails': FieldValue.arrayUnion([email])});
+    }
+  }
+
+  @override
+  Future<void> checkPendingInvites(String email) async {
+    final snapshot = await _listsCollection.where('pendingEmails', arrayContains: email).get();
+    for (var doc in snapshot.docs) {
+      await doc.reference.update({
+        'memberIds': FieldValue.arrayUnion([_userId]),
+        'pendingEmails': FieldValue.arrayRemove([email])
+      });
     }
   }
 
   @override
   Future<void> removeUserFromList(String listId, String userIdToRemove) async {}
 
+  // --- TASKS ---
+
   @override
   Future<List<TodoTask>> getTasks(String listId) async {
     final snapshot = await _listsCollection.doc(listId).collection('tasks').get();
-    return snapshot.docs.map((doc) => TodoTask.fromMap(doc.data()).copyWith(listId: listId)).toList();
+    return snapshot.docs.map((doc) {
+      return TodoTask.fromMap(doc.data()).copyWith(listId: listId); 
+    }).toList();
   }
 
   @override
@@ -105,20 +104,52 @@ class FirestoreService implements TaskRepository {
     await _listsCollection.doc(listId).collection('tasks').doc(taskId).delete();
   }
 
+  // --- KATEGORIER (SMART MERGE) ---
+
   @override
   Future<List<String>> getCategories() async {
-    final doc = await _userDoc.get();
-    if (doc.exists && doc.data() != null) {
-      final data = doc.data() as Map<String, dynamic>;
-      if (data.containsKey('categories')) return List<String>.from(data['categories']);
+    try {
+      final doc = await _userDoc.get();
+      
+      // Vi bruger et Set for automatisk at undgå dubletter
+      // Start med vores standard kategorier
+      Set<String> allCategories = {..._defaultCategories};
+
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data() as Map<String, dynamic>;
+        
+        // Hent brugerens egne kategorier (hvis de findes)
+        if (data.containsKey('customCategories')) {
+          final custom = List<String>.from(data['customCategories']);
+          allCategories.addAll(custom);
+        }
+        // Bagudkompatibilitet (hvis vi tidligere brugte 'categories' feltet)
+        else if (data.containsKey('categories')) {
+           final old = List<String>.from(data['categories']);
+           allCategories.addAll(old);
+        }
+      }
+      
+      return allCategories.toList();
+
+    } catch (e) {
+      print("Fejl ved hentning af kategorier: $e");
+      return _defaultCategories; // Fallback til standard hvis nettet fejler
     }
-    return ['Generelt', 'Arbejde', 'Personlig', 'Studie', 'Dev', 'QA'];
   }
 
   @override
   Future<void> addCategory(String category) async {
-    await _userDoc.set({'categories': FieldValue.arrayUnion([category])}, SetOptions(merge: true));
+    // Hvis kategorien allerede er en standard, behøver vi ikke gemme den
+    if (_defaultCategories.contains(category)) return;
+
+    // Gem i 'customCategories' på brugeren
+    await _userDoc.set({
+      'customCategories': FieldValue.arrayUnion([category])
+    }, SetOptions(merge: true));
   }
+
+  // --- THEME & SETTINGS ---
 
   @override
   Future<bool> getThemePreference() async {
