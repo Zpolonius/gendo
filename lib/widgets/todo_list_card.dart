@@ -93,14 +93,32 @@ class _TodoListCardState extends State<TodoListCard> {
     final isOwner = currentUser?.uid == widget.list.ownerId;
     final isDark = theme.brightness == Brightness.dark;
 
-    // 1. Hent alle opgaver og filtrer baseret på indstilling
+    // 1. Hent alle opgaver til denne liste
     final allListTasks = widget.vm.allTasks.where((t) => t.listId == widget.list.id).toList();
     final showCompleted = widget.list.showCompleted;
     
-    // Hvis showCompleted er true, vis alt. Ellers kun dem der ikke er færdige.
-    final visibleTasks = showCompleted 
-        ? allListTasks 
-        : allListTasks.where((t) => !t.isCompleted).toList();
+    // 2. Filtrer listen: Skal vi vise alt eller kun aktive?
+    // Vi bruger List.from() for at lave en kopi vi kan sortere i
+    List<TodoTask> visibleTasks = List.from(
+      showCompleted 
+          ? allListTasks 
+          : allListTasks.where((t) => !t.isCompleted)
+    );
+
+    // 3. SORTERING (NY LOGIK)
+    visibleTasks.sort((a, b) {
+      // Regel 1: Færdige opgaver skal altid nederst
+      if (a.isCompleted != b.isCompleted) {
+        return a.isCompleted ? 1 : -1; // Hvis a er færdig (true), ryger den bagud (1)
+      }
+      
+      // Regel 2: Hvis begge har samme status, sorter efter nyeste først (createdAt)
+      // Dette sikrer at listen ikke "hopper rundt" tilfældigt
+      return b.createdAt.compareTo(a.createdAt);
+    });
+
+    // Statistik til undertitlen
+    final activeCount = allListTasks.where((t) => !t.isCompleted).length;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -122,11 +140,10 @@ class _TodoListCardState extends State<TodoListCard> {
             widget.list.title,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-          // UX: Vis brugeren hvor mange opgaver der er i alt vs synlige
           subtitle: Text(
             showCompleted 
                 ? "${allListTasks.length} opgaver • ${widget.list.memberIds.length} medlemmer"
-                : "${visibleTasks.length} opgaver (af ${allListTasks.length}) • ${widget.list.memberIds.length} medlemmer",
+                : "$activeCount opgaver (af ${allListTasks.length}) • ${widget.list.memberIds.length} medlemmer",
             style: TextStyle(color: Colors.grey[600], fontSize: 12),
           ),
           leading: Container(
@@ -142,7 +159,6 @@ class _TodoListCardState extends State<TodoListCard> {
             onSelected: (value) {
               if (value == 'members') _showMembersDialog(context);
               if (value == 'delete') _showDeleteListDialog(context);
-              // NYT: Kald ViewModel for at toggle
               if (value == 'toggle_completed') widget.vm.toggleListShowCompleted(widget.list.id);
             },
             itemBuilder: (context) => [
@@ -156,7 +172,6 @@ class _TodoListCardState extends State<TodoListCard> {
                   ],
                 ),
               ),
-              // NYT MENU PUNKT
               PopupMenuItem(
                 value: 'toggle_completed',
                 child: Row(
@@ -209,7 +224,6 @@ class _TodoListCardState extends State<TodoListCard> {
               ),
             ),
 
-            // UX: Håndtering af tomme lister vs skjulte opgaver
             if (visibleTasks.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -221,7 +235,6 @@ class _TodoListCardState extends State<TodoListCard> {
                           : "Alle opgaver er færdige! 🎉", 
                       style: TextStyle(color: Colors.grey[400], fontStyle: FontStyle.italic),
                     ),
-                    // Hvis der er opgaver, men de er skjult, giv en hurtig måde at vise dem på
                     if (allListTasks.isNotEmpty && !showCompleted)
                       TextButton(
                         onPressed: () => widget.vm.toggleListShowCompleted(widget.list.id),
