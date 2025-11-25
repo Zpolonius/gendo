@@ -136,11 +136,11 @@ class AppViewModel extends ChangeNotifier {
     _activeListId = newList.id; 
     notifyListeners();
   }
-
+//get users invited
   Future<void> inviteUser(String listId, String email) async {
     await _repository.inviteUserByEmail(listId, email);
   }
-
+//list members
   Future<List<Map<String, String>>> getListMembers(String listId) async {
     try {
       final list = _lists.firstWhere((l) => l.id == listId);
@@ -163,6 +163,32 @@ class AppViewModel extends ChangeNotifier {
       _activeListId = _lists.isNotEmpty ? _lists.first.id : null;
     }
     notifyListeners();
+  }
+
+    Future<void> toggleListShowCompleted(String listId) async {
+    final index = _lists.indexWhere((l) => l.id == listId);
+    if (index == -1) return;
+
+    final currentList = _lists[index];
+    // Opret ny instans med modsat værdi
+    final updatedList = currentList.copyWith(
+      showCompleted: !currentList.showCompleted
+    );
+
+    // 1. Opdater state lokalt (Optimistic update)
+    _lists[index] = updatedList;
+    notifyListeners();
+
+    // 2. Gem i databasen
+    try {
+      await _repository.updateList(updatedList);
+    } catch (e) {
+      // Ved fejl: Rul tilbage (valgfrit, men god practice)
+      print("Fejl ved opdatering af liste: $e");
+      _lists[index] = currentList;
+      notifyListeners();
+    }
+  
   }
 
   // --- OPGAVER ---

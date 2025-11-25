@@ -5,7 +5,7 @@ import '../models/todo_list.dart';
 import '../viewmodel.dart';
 import '../screens/task_detail_screen.dart';
 import 'task_card.dart';
-import 'member_management_dialog.dart'; // HUSK IMPORT
+import 'member_management_dialog.dart';
 
 class TodoListCard extends StatefulWidget {
   final TodoList list;
@@ -58,7 +58,6 @@ class _TodoListCardState extends State<TodoListCard> {
     );
   }
 
-  // --- ÅBNER DEN NYE DIALOG ---
   void _showMembersDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -92,8 +91,16 @@ class _TodoListCardState extends State<TodoListCard> {
     final theme = Theme.of(context);
     final currentUser = FirebaseAuth.instance.currentUser;
     final isOwner = currentUser?.uid == widget.list.ownerId;
-    final listTasks = widget.vm.allTasks.where((t) => t.listId == widget.list.id).toList();
     final isDark = theme.brightness == Brightness.dark;
+
+    // 1. Hent alle opgaver og filtrer baseret på indstilling
+    final allListTasks = widget.vm.allTasks.where((t) => t.listId == widget.list.id).toList();
+    final showCompleted = widget.list.showCompleted;
+    
+    // Hvis showCompleted er true, vis alt. Ellers kun dem der ikke er færdige.
+    final visibleTasks = showCompleted 
+        ? allListTasks 
+        : allListTasks.where((t) => !t.isCompleted).toList();
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -115,8 +122,11 @@ class _TodoListCardState extends State<TodoListCard> {
             widget.list.title,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
+          // UX: Vis brugeren hvor mange opgaver der er i alt vs synlige
           subtitle: Text(
-            "${listTasks.length} opgaver • ${widget.list.memberIds.length} medlemmer",
+            showCompleted 
+                ? "${allListTasks.length} opgaver • ${widget.list.memberIds.length} medlemmer"
+                : "${visibleTasks.length} opgaver (af ${allListTasks.length}) • ${widget.list.memberIds.length} medlemmer",
             style: TextStyle(color: Colors.grey[600], fontSize: 12),
           ),
           leading: Container(
@@ -132,16 +142,28 @@ class _TodoListCardState extends State<TodoListCard> {
             onSelected: (value) {
               if (value == 'members') _showMembersDialog(context);
               if (value == 'delete') _showDeleteListDialog(context);
+              // NYT: Kald ViewModel for at toggle
+              if (value == 'toggle_completed') widget.vm.toggleListShowCompleted(widget.list.id);
             },
             itemBuilder: (context) => [
-              // --- OPDATERET MENU PUNKT ---
               const PopupMenuItem(
                 value: 'members',
                 child: Row(
                   children: [
                     Icon(Icons.group_outlined, size: 20),
                     SizedBox(width: 8),
-                    Text("Medlemmer"), // Før: "Inviter"
+                    Text("Medlemmer"),
+                  ],
+                ),
+              ),
+              // NYT MENU PUNKT
+              PopupMenuItem(
+                value: 'toggle_completed',
+                child: Row(
+                  children: [
+                    Icon(showCompleted ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20),
+                    SizedBox(width: 8),
+                    Text(showCompleted ? "Skjul færdige" : "Vis færdige"),
                   ],
                 ),
               ),
@@ -187,13 +209,29 @@ class _TodoListCardState extends State<TodoListCard> {
               ),
             ),
 
-            if (listTasks.isEmpty)
+            // UX: Håndtering af tomme lister vs skjulte opgaver
+            if (visibleTasks.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text("Ingen opgaver endnu.", style: TextStyle(color: Colors.grey[400], fontStyle: FontStyle.italic)),
+                child: Column(
+                  children: [
+                    Text(
+                      allListTasks.isEmpty 
+                          ? "Ingen opgaver endnu." 
+                          : "Alle opgaver er færdige! 🎉", 
+                      style: TextStyle(color: Colors.grey[400], fontStyle: FontStyle.italic),
+                    ),
+                    // Hvis der er opgaver, men de er skjult, giv en hurtig måde at vise dem på
+                    if (allListTasks.isNotEmpty && !showCompleted)
+                      TextButton(
+                        onPressed: () => widget.vm.toggleListShowCompleted(widget.list.id),
+                        child: const Text("Vis færdige opgaver", style: TextStyle(fontSize: 12)),
+                      )
+                  ],
+                ),
               )
             else
-              ...listTasks.map((task) => TaskCard(
+              ...visibleTasks.map((task) => TaskCard(
                 task: task, 
                 onTap: () => _openTaskDetail(context, task),
                 onToggle: () => widget.vm.toggleTask(task.id),

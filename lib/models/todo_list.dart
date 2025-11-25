@@ -5,6 +5,7 @@ class TodoList {
   final List<String> memberIds;
   final List<String> pendingEmails;
   final DateTime createdAt;
+  final bool showCompleted; // NYT FELT
 
   TodoList({
     required this.id,
@@ -13,6 +14,7 @@ class TodoList {
     required this.memberIds,
     this.pendingEmails = const [],
     required this.createdAt,
+    this.showCompleted = false, // Standard: Skjul færdige (false = vis ikke)
   });
 
   Map<String, dynamic> toMap() {
@@ -23,6 +25,7 @@ class TodoList {
       'memberIds': memberIds,
       'pendingEmails': pendingEmails, 
       'createdAt': createdAt.millisecondsSinceEpoch,
+      'showCompleted': showCompleted, // Gem indstilling
     };
   }
 
@@ -34,6 +37,25 @@ class TodoList {
       memberIds: List<String>.from(map['memberIds'] ?? []),
       pendingEmails: List<String>.from(map['pendingEmails'] ?? []), 
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
+      showCompleted: map['showCompleted'] ?? false, // Default til false for eksisterende lister
+    );
+  }
+
+  // Helper til at kopiere objektet med ændringer
+  TodoList copyWith({
+    String? title,
+    List<String>? memberIds,
+    List<String>? pendingEmails,
+    bool? showCompleted,
+  }) {
+    return TodoList(
+      id: id,
+      title: title ?? this.title,
+      ownerId: ownerId,
+      memberIds: memberIds ?? this.memberIds,
+      pendingEmails: pendingEmails ?? this.pendingEmails,
+      createdAt: createdAt,
+      showCompleted: showCompleted ?? this.showCompleted,
     );
   }
 }

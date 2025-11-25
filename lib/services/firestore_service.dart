@@ -31,7 +31,13 @@ class FirestoreService implements TaskRepository {
   Future<void> updateUserProfile(Map<String, dynamic> data) async {
     await _userDoc.update(data);
   }
-
+  //scomplete status
+@override
+  Future<void> updateList(TodoList list) async {
+    // Vi bruger toMap til at opdatere dokumentet. 
+    // Dette opdaterer både titel, medlemmer og nu showCompleted.
+    await _listsCollection.doc(list.id).update(list.toMap());
+  }
   // --- MEDLEMS DETALJER (OPDATERET) ---
   // Nu henter vi Navn+Efternavn i stedet for email hvis muligt
   @override
