@@ -18,7 +18,7 @@ class TodoTask {
     this.category = 'Generelt',
     this.description = '',
     this.dueDate,
-    this.priority = TaskPriority.medium,
+    this.priority = TaskPriority.low,
     this.isCompleted = false,
     required this.createdAt,
     this.listId = '', // Default værdi for at undgå fejl
