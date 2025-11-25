@@ -82,7 +82,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
     });
   }
 
-  // NY FUNKTION: Viser liste over opgaver man kan skifte til
+  // NY FUNKTION: Viser liste over opgaver man kan skifte til + Pause/Fri fokus
   void _showNextTaskSelector(BuildContext context, AppViewModel vm) {
     showModalBottomSheet(
       context: context,
@@ -93,18 +93,44 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
       builder: (ctx) {
         // Find opgaver der IKKE er færdige
         final availableTasks = vm.allTasks.where((t) => !t.isCompleted).toList();
+        final theme = Theme.of(context);
         
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Vælg næste opgave", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const Text("Hvad vil du nu?", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               const SizedBox(height: 10),
+              
+              // 1. START PAUSE NU
+              ListTile(
+                leading: const Icon(Icons.coffee_outlined, color: Colors.brown),
+                title: const Text("Tag en pause nu"),
+                onTap: () {
+                  vm.startBreak(5); // Start en kort pause (eller standard)
+                  Navigator.pop(ctx);
+                },
+              ),
+              
+              // 2. FRI FOKUS
+              ListTile(
+                leading: const Icon(Icons.center_focus_strong, color: Colors.blueAccent),
+                title: const Text("Fri fokus (Ingen opgave)"),
+                subtitle: const Text("Fortsæt timeren uden en specifik opgave"),
+                onTap: () {
+                  vm.setSelectedTask(null); // Sæt opgave til null (Fri fokus)
+                  Navigator.pop(ctx);
+                },
+              ),
+
+              const Divider(),
+              
+              // 3. VÆLG NY OPGAVE
               if (availableTasks.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(20),
-                  child: Text("Ingen flere opgaver! 🎉"),
+                  child: Text("Ingen flere opgaver på listen! 🎉", style: TextStyle(color: Colors.grey)),
                 )
               else
                 Flexible(
@@ -117,7 +143,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                         leading: const Icon(Icons.radio_button_unchecked, color: Colors.grey),
                         title: Text(task.title),
                         subtitle: Text(
-                          // Vis listenavn hvis muligt
                           vm.lists.firstWhere((l) => l.id == task.listId, orElse: () => vm.lists.first).title,
                           style: TextStyle(fontSize: 12, color: Colors.grey[600])
                         ),
