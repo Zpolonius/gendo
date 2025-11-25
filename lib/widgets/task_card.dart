@@ -45,15 +45,14 @@ class TaskCard extends StatelessWidget {
         child: ListTile(
           contentPadding: EdgeInsets.symmetric(horizontal: compact ? 8 : 16, vertical: compact ? 0 : 12),
           
-          // --- LEADING: PRIORITETS INDIKATOR ---
+          // LEADING: PRIORITETS INDIKATOR
           leading: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: _getPriorityColor(task.priority).withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            // OPDATERET IKON HER:
-            child: Icon(Icons.pending_actions_outlined, color: _getPriorityColor(task.priority), size: 20),
+            child: Icon(Icons.flag, color: _getPriorityColor(task.priority), size: 20),
           ),
 
           title: Text(
@@ -68,34 +67,23 @@ class TaskCard extends StatelessWidget {
             )
           ),
           
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Text(
-                    task.category, 
-                    style: TextStyle(fontSize: 12, color: theme.colorScheme.primary.withOpacity(0.7))
-                  ),
-                  
-                  if (task.dueDate != null) ...[
-                    const SizedBox(width: 8),
-                    const Text("•", style: TextStyle(color: Colors.grey)), 
-                    const SizedBox(width: 8),
+          subtitle: (task.dueDate != null) 
+            ? Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Row(
+                  children: [
                     Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
                     const SizedBox(width: 4),
                     Text(
                       dateFormatter.format(task.dueDate!),
                       style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                     ),
-                  ]
-                ],
-              ),
-            ],
-          ),
+                  ],
+                ),
+              )
+            : null, // Hvis ingen dato, vis ingen subtitle
           
-          // --- TRAILING: TJEKBOKS ---
+          // TRAILING: TJEKBOKS
           trailing: IconButton(
             icon: Icon(task.isCompleted ? Icons.check_circle : Icons.circle_outlined),
             color: task.isCompleted ? Colors.green : Colors.grey,
