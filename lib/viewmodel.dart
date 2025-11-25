@@ -136,11 +136,11 @@ class AppViewModel extends ChangeNotifier {
     _activeListId = newList.id; 
     notifyListeners();
   }
-//get users invited
+
   Future<void> inviteUser(String listId, String email) async {
     await _repository.inviteUserByEmail(listId, email);
   }
-//list members
+
   Future<List<Map<String, String>>> getListMembers(String listId) async {
     try {
       final list = _lists.firstWhere((l) => l.id == listId);
@@ -164,31 +164,26 @@ class AppViewModel extends ChangeNotifier {
     }
     notifyListeners();
   }
-
-    Future<void> toggleListShowCompleted(String listId) async {
+  
+  Future<void> toggleListShowCompleted(String listId) async {
     final index = _lists.indexWhere((l) => l.id == listId);
     if (index == -1) return;
 
     final currentList = _lists[index];
-    // Opret ny instans med modsat værdi
     final updatedList = currentList.copyWith(
       showCompleted: !currentList.showCompleted
     );
 
-    // 1. Opdater state lokalt (Optimistic update)
     _lists[index] = updatedList;
     notifyListeners();
 
-    // 2. Gem i databasen
     try {
       await _repository.updateList(updatedList);
     } catch (e) {
-      // Ved fejl: Rul tilbage (valgfrit, men god practice)
       print("Fejl ved opdatering af liste: $e");
       _lists[index] = currentList;
       notifyListeners();
     }
-  
   }
 
   // --- OPGAVER ---
@@ -233,26 +228,18 @@ class AppViewModel extends ChangeNotifier {
     }
   }
 
-  // OPDATERET: Kan nu håndtere flytning af opgave til ny liste
   Future<void> updateTaskDetails(TodoTask task, {String? oldListId}) async {
-    // Hvis oldListId er angivet og forskellig fra den nye, så er det en flytning
     if (oldListId != null && oldListId != task.listId) {
-      // 1. Slet fra gammel liste i DB
       await _repository.deleteTask(oldListId, task.id);
-      // 2. Opret i ny liste i DB (med samme ID og data)
       await _repository.addTask(task);
       
-      // 3. Opdater lokalt state
-      // Fjern fra gammel liste
       if (_tasksByList.containsKey(oldListId)) {
         _tasksByList[oldListId]!.removeWhere((t) => t.id == task.id);
       }
-      // Tilføj til ny liste
       if (_tasksByList[task.listId] == null) _tasksByList[task.listId] = [];
       _tasksByList[task.listId]!.add(task);
 
     } else {
-      // Almindelig opdatering i samme liste
       await _repository.updateTask(task);
       final list = _tasksByList[task.listId];
       if (list != null) {
@@ -365,6 +352,34 @@ class AppViewModel extends ChangeNotifier {
     int breakMinutes = 10; 
     if (_pomodoroSettings.enableLongBreaks && _sessionsCompleted % 3 == 0) breakMinutes = 30;
     startBreak(breakMinutes); 
+  }
+
+  // NY METODE: Afslut opgave og gør klar til næste i samme session
+  Future<void> completeTaskAndContinue() async {
+    final task = selectedTaskObj;
+    if (task == null) return;
+
+    // 1. Beregn tid brugt på DENNE opgave
+    // (Total varighed - tid tilbage = tid brugt siden sidste reset)
+    final sessionTimeSpent = _pomodoroDurationTotal - _pomodoroTimeLeft;
+    
+    // 2. Gem opgaven som færdig
+    final updatedTask = task.copyWith(
+      isCompleted: true,
+      timeSpent: task.timeSpent + sessionTimeSpent,
+    );
+    await updateTaskDetails(updatedTask);
+
+    // 3. Juster timeren til næste opgave
+    // Vi sætter 'Total' til nuværende 'TimeLeft'. 
+    // Det sikrer, at tiden for den NÆSTE opgave starter fra 0 i beregningen.
+    // (Cirklen vil hoppe til 'fuld', hvilket viser at man starter en ny del-session)
+    _pomodoroDurationTotal = _pomodoroTimeLeft;
+    
+    // 4. Fjern valg af opgave (så UI kan bede om en ny)
+    _selectedTaskId = null;
+    
+    notifyListeners();
   }
   
   void startBreak(int minutes) { 

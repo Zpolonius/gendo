@@ -82,6 +82,60 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
     });
   }
 
+  // NY FUNKTION: Viser liste over opgaver man kan skifte til
+  void _showNextTaskSelector(BuildContext context, AppViewModel vm) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))
+      ),
+      builder: (ctx) {
+        // Find opgaver der IKKE er færdige
+        final availableTasks = vm.allTasks.where((t) => !t.isCompleted).toList();
+        
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Vælg næste opgave", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 10),
+              if (availableTasks.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text("Ingen flere opgaver! 🎉"),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: availableTasks.length,
+                    itemBuilder: (ctx, i) {
+                      final task = availableTasks[i];
+                      return ListTile(
+                        leading: const Icon(Icons.radio_button_unchecked, color: Colors.grey),
+                        title: Text(task.title),
+                        subtitle: Text(
+                          // Vis listenavn hvis muligt
+                          vm.lists.firstWhere((l) => l.id == task.listId, orElse: () => vm.lists.first).title,
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600])
+                        ),
+                        onTap: () {
+                          vm.setSelectedTask(task.id); // Vælg ny opgave
+                          Navigator.pop(ctx); // Luk listen
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
   String _formatTime(int seconds) {
     final minutes = (seconds / 60).floor();
     final remSeconds = seconds % 60;
@@ -239,41 +293,68 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
 
           const SizedBox(height: 40),
 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (!vm.isOnBreak)
-                FloatingActionButton.large(
-                  heroTag: 'timer_control',
-                  onPressed: vm.isTimerRunning ? vm.stopTimer : vm.startTimer,
-                  backgroundColor: vm.isTimerRunning ? Colors.orangeAccent : theme.colorScheme.primary,
-                  elevation: 5,
-                  child: Icon(vm.isTimerRunning ? Icons.pause : Icons.play_arrow_rounded, color: Colors.white, size: 48),
-                ),
-              
-              if (vm.isOnBreak)
-                ElevatedButton.icon(
-                  onPressed: vm.skipBreak,
-                  icon: const Icon(Icons.skip_next),
-                  label: const Text("Luk Pause"),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.green[700],
-                  ),
-                ),
+          // --- CONTROLS (OPDATERET LAYOUT) ---
+          Padding(
+            padding: const EdgeInsets.only(bottom: 40, left: 24, right: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 1. "FÆRDIG" KNAP (Venstre side)
+                if (!vm.isOnBreak && vm.selectedTaskObj != null) 
+                  FloatingActionButton(
+                    heroTag: 'task_complete',
+                    onPressed: () async {
+                      // Gem nuværende og fortsæt
+                      await vm.completeTaskAndContinue();
+                      // Vis valgmulighed for næste
+                      if (context.mounted) _showNextTaskSelector(context, vm);
+                    },
+                    backgroundColor: Colors.green, 
+                    elevation: 2,
+                    child: const Icon(Icons.check, color: Colors.white),
+                  )
+                else if (!vm.isOnBreak)
+                  const SizedBox(width: 56), // Tom plads for symmetri
 
-              if (!vm.isOnBreak) ...[
-                const SizedBox(width: 30),
-                FloatingActionButton(
-                  heroTag: 'timer_reset',
-                  onPressed: vm.resetTimer,
-                  backgroundColor: theme.colorScheme.surface,
-                  elevation: 2,
-                  child: Icon(Icons.refresh_rounded, color: theme.colorScheme.onSurface),
-                ),
-              ]
-            ],
+                const SizedBox(width: 20),
+
+                // 2. PLAY/PAUSE (Centrum)
+                if (!vm.isOnBreak)
+                  FloatingActionButton.large(
+                    heroTag: 'timer_control',
+                    onPressed: vm.isTimerRunning ? vm.stopTimer : vm.startTimer,
+                    backgroundColor: vm.isTimerRunning ? Colors.orangeAccent : theme.colorScheme.primary,
+                    elevation: 5,
+                    child: Icon(vm.isTimerRunning ? Icons.pause : Icons.play_arrow_rounded, color: Colors.white, size: 48),
+                  ),
+                
+                if (vm.isOnBreak)
+                  ElevatedButton.icon(
+                    onPressed: vm.skipBreak,
+                    icon: const Icon(Icons.skip_next),
+                    label: const Text("Luk Pause"),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.green[700],
+                    ),
+                  ),
+
+                const SizedBox(width: 20),
+
+                // 3. RESET (Højre side)
+                if (!vm.isOnBreak)
+                  FloatingActionButton(
+                    heroTag: 'timer_reset',
+                    onPressed: vm.resetTimer,
+                    backgroundColor: theme.colorScheme.surface,
+                    elevation: 2,
+                    child: Icon(Icons.refresh_rounded, color: theme.colorScheme.onSurface),
+                  )
+                else 
+                  const SizedBox(width: 56), // Tom plads for symmetri
+              ],
+            ),
           ),
         ],
       ),

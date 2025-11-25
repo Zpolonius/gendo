@@ -10,6 +10,7 @@ class TodoTask {
   bool isCompleted;
   final DateTime createdAt;
   final String listId; // NYT FELT: Kobler opgaven til en liste
+  final int timeSpent;
 
   TodoTask({
     required this.id,
@@ -21,6 +22,7 @@ class TodoTask {
     this.isCompleted = false,
     required this.createdAt,
     this.listId = '', // Default værdi for at undgå fejl
+    this.timeSpent = 0,
   });
 
   TodoTask copyWith({
@@ -33,6 +35,7 @@ class TodoTask {
     bool? isCompleted,
     DateTime? createdAt,
     String? listId,
+    int? timeSpent,
   }) {
     return TodoTask(
       id: id ?? this.id,
@@ -44,6 +47,7 @@ class TodoTask {
       isCompleted: isCompleted ?? this.isCompleted,
       createdAt: createdAt ?? this.createdAt,
       listId: listId ?? this.listId,
+      timeSpent: timeSpent ?? this.timeSpent,
     );
   }
 
@@ -58,6 +62,7 @@ class TodoTask {
       'isCompleted': isCompleted,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'listId': listId,
+      'timeSpent': timeSpent,
     };
   }
 
@@ -72,6 +77,7 @@ class TodoTask {
       isCompleted: map['isCompleted'] ?? false,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? DateTime.now().millisecondsSinceEpoch),
       listId: map['listId'] ?? '',
+      timeSpent: map['timeSpent'] ?? 0,
     );
   }
 }
