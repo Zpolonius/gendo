@@ -9,11 +9,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gendo/main.dart';
+import 'package:gendo/services/notification_service.dart'; // Import servicen
+
+// Mock af NotificationService så vi ikke kalder den rigtige plugin i test
+class MockNotificationService implements NotificationService {
+  @override
+  Future<void> init() async {}
+
+  @override
+  Future<void> requestPermissions() async {}
+
+  @override
+  Future<void> showTimerCompleteNotification({required String title, required String body, bool isWorkSession = true}) async {}
+
+  @override
+  Future<void> scheduleDeadlineNotification({required int id, required String taskTitle, required DateTime dueDate}) async {}
+
+  @override
+  Future<void> cancelNotification(int id) async {}
+}
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+    // Opret en instans af vores mock service
+    final mockNotificationService = MockNotificationService();
+
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const GenDoApp());
+    // Her sender vi mock servicen med
+    await tester.pumpWidget(GenDoApp(notificationService: mockNotificationService));
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);
