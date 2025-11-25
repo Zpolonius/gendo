@@ -245,7 +245,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     children: [
                       // Kategori chip er fjernet
                       Chip(
-                        avatar: Icon(Icons.flag, size: 16, color: _getPriorityColor(task.priority)),
+                        avatar: Icon(Icons.pending_actions_outlined, size: 16, color: _getPriorityColor(task.priority)),
                         label: Text(task.priority.name.toUpperCase()),
                         backgroundColor: _getPriorityColor(task.priority).withOpacity(0.1),
                         labelStyle: TextStyle(color: _getPriorityColor(task.priority), fontWeight: FontWeight.bold),
