@@ -27,8 +27,8 @@ void main() async {
   // NYT: Initialiser Notification Service
   final notificationService = NotificationService();
   await notificationService.init();
-  // Bed om lov med det samme (eller gør det senere i UI for bedre UX)
-  await notificationService.requestPermissions();
+
+
 
   runApp(GenDoApp(notificationService: notificationService));
 }
@@ -151,6 +151,13 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 1;
   
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_){
+        context.read<NotificationService>().requestPermissions();
+    });
+  }
   void _switchTab(int index) {
     setState(() {
       _currentIndex = index;

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../viewmodel.dart';
-
+import '../services/notification_service.dart'; // Husk import
 
 class PomodoroScreen extends StatefulWidget {
   const PomodoroScreen({super.key});
@@ -37,7 +37,8 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
       });
     }
   }
-
+  
+  // ... (Resten af dialog metoderne er uændrede - kopier dem fra forrige version)
   void _showCompletionDialog(BuildContext context, AppViewModel vm) {
     setState(() => _isDialogShowing = true);
     final breaksEnabled = vm.pomodoroSettings.enableBreaks;
@@ -82,7 +83,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
     });
   }
 
-  // NY FUNKTION: Viser liste over opgaver man kan skifte til + Pause/Fri fokus
   void _showNextTaskSelector(BuildContext context, AppViewModel vm) {
     showModalBottomSheet(
       context: context,
@@ -91,9 +91,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20))
       ),
       builder: (ctx) {
-        // Find opgaver der IKKE er færdige
         final availableTasks = vm.allTasks.where((t) => !t.isCompleted).toList();
-        final theme = Theme.of(context);
         
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 20),
@@ -102,31 +100,24 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
             children: [
               const Text("Hvad vil du nu?", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               const SizedBox(height: 10),
-              
-              // 1. START PAUSE NU
               ListTile(
                 leading: const Icon(Icons.coffee_outlined, color: Colors.brown),
                 title: const Text("Tag en pause nu"),
                 onTap: () {
-                  vm.startBreak(5); // Start en kort pause (eller standard)
+                  vm.startBreak(5); 
                   Navigator.pop(ctx);
                 },
               ),
-              
-              // 2. FRI FOKUS
               ListTile(
                 leading: const Icon(Icons.center_focus_strong, color: Colors.blueAccent),
                 title: const Text("Fri fokus (Ingen opgave)"),
                 subtitle: const Text("Fortsæt timeren uden en specifik opgave"),
                 onTap: () {
-                  vm.setSelectedTask(null); // Sæt opgave til null (Fri fokus)
+                  vm.setSelectedTask(null);
                   Navigator.pop(ctx);
                 },
               ),
-
               const Divider(),
-              
-              // 3. VÆLG NY OPGAVE
               if (availableTasks.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(20),
@@ -147,8 +138,8 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                           style: TextStyle(fontSize: 12, color: Colors.grey[600])
                         ),
                         onTap: () {
-                          vm.setSelectedTask(task.id); // Vælg ny opgave
-                          Navigator.pop(ctx); // Luk listen
+                          vm.setSelectedTask(task.id); 
+                          Navigator.pop(ctx); 
                         },
                       );
                     },
@@ -167,6 +158,8 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
     return '${minutes.toString().padLeft(2, '0')}:${remSeconds.toString().padLeft(2, '0')}';
   }
 
+  // ... (Resten af build metoden)
+
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<AppViewModel>();
@@ -178,10 +171,8 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
         ? (vm.pomodoroDurationTotal > 600 ? "LANG PAUSE" : "PAUSE")
         : "FOKUS";
 
-    // Hent alle aktive opgaver på tværs af lister
     final activeTasks = vm.allTasks.where((t) => !t.isCompleted).toList();
 
-    // Valider selection
     String? validSelectedTaskId = vm.selectedTaskId;
     if (validSelectedTaskId != null && !activeTasks.any((t) => t.id == validSelectedTaskId)) {
       validSelectedTaskId = null;
@@ -247,7 +238,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
           ),
           const SizedBox(height: 60),
 
-          // --- OPGAVE VÆLGER ---
+          // OPGAVE VÆLGER
           if (!vm.isTimerRunning && !vm.isOnBreak)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -260,7 +251,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                 child: DropdownButton<String>(
                   value: validSelectedTaskId,
                   isExpanded: true,
-                  itemHeight: null, // Tillad dynamisk højde for vores custom items
+                  itemHeight: null,
                   dropdownColor: theme.colorScheme.surface,
                   hint: Text("Vælg en opgave at fokusere på", style: TextStyle(color: Colors.grey[500])),
                   items: [
@@ -272,14 +263,11 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                       )
                     ),
                     ...activeTasks.map((task) {
-                      // Find listens navn
                       String listName = "Ukendt liste";
                       try {
                         final list = vm.lists.firstWhere((l) => l.id == task.listId);
                         listName = list.title;
-                      } catch (e) {
-                        // Liste ikke fundet
-                      }
+                      } catch (e) { }
 
                       return DropdownMenuItem(
                         value: task.id,
@@ -289,22 +277,8 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(
-                                task.title, 
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurface, 
-                                  fontWeight: FontWeight.w500
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                listName, 
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.5), 
-                                  fontSize: 12, 
-                                  fontStyle: FontStyle.italic
-                                )
-                              ),
+                              Text(task.title, style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                              Text(listName, style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5), fontSize: 12, fontStyle: FontStyle.italic)),
                             ],
                           ),
                         ),
@@ -318,20 +292,17 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
 
           const SizedBox(height: 40),
 
-          // --- CONTROLS (OPDATERET LAYOUT) ---
+          // --- CONTROLS ---
           Padding(
             padding: const EdgeInsets.only(bottom: 40, left: 24, right: 24),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 1. "FÆRDIG" KNAP (Venstre side)
                 if (!vm.isOnBreak && vm.selectedTaskObj != null) 
                   FloatingActionButton(
                     heroTag: 'task_complete',
                     onPressed: () async {
-                      // Gem nuværende og fortsæt
                       await vm.completeTaskAndContinue();
-                      // Vis valgmulighed for næste
                       if (context.mounted) _showNextTaskSelector(context, vm);
                     },
                     backgroundColor: Colors.green, 
@@ -339,15 +310,21 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                     child: const Icon(Icons.check, color: Colors.white),
                   )
                 else if (!vm.isOnBreak)
-                  const SizedBox(width: 56), // Tom plads for symmetri
+                  const SizedBox(width: 56),
 
                 const SizedBox(width: 20),
 
-                // 2. PLAY/PAUSE (Centrum)
+                // PLAY/PAUSE
                 if (!vm.isOnBreak)
                   FloatingActionButton.large(
                     heroTag: 'timer_control',
-                    onPressed: vm.isTimerRunning ? vm.stopTimer : vm.startTimer,
+                    onPressed: () {
+                      // UX: Spørg om tilladelse når man starter timeren, hvis man ikke allerede har gjort det
+                      if (!vm.isTimerRunning) {
+                        context.read<NotificationService>().requestPermissions();
+                      }
+                      vm.isTimerRunning ? vm.stopTimer() : vm.startTimer();
+                    },
                     backgroundColor: vm.isTimerRunning ? Colors.orangeAccent : theme.colorScheme.primary,
                     elevation: 5,
                     child: Icon(vm.isTimerRunning ? Icons.pause : Icons.play_arrow_rounded, color: Colors.white, size: 48),
@@ -367,7 +344,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
 
                 const SizedBox(width: 20),
 
-                // 3. RESET (Højre side)
+                // RESET
                 if (!vm.isOnBreak)
                   FloatingActionButton(
                     heroTag: 'timer_reset',
@@ -377,7 +354,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                     child: Icon(Icons.refresh_rounded, color: theme.colorScheme.onSurface),
                   )
                 else 
-                  const SizedBox(width: 56), // Tom plads for symmetri
+                  const SizedBox(width: 56),
               ],
             ),
           ),
