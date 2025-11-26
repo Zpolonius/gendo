@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/user_profile.dart'; // Husk import
+import '../models/user_profile.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -51,8 +51,6 @@ class AuthService {
       );
 
       // 3. Gem de personlige data i Firestore under 'users' kollektionen
-      // Dette er sikkert, da vi kan bruge Firestore Rules til at sige at 
-      // kun ejeren må redigere, men andre må læse (for at se navnet på lister).
       await _db.collection('users').doc(newUser.uid).set(newUser.toMap());
       
     } catch (e) {
@@ -65,10 +63,32 @@ class AuthService {
     await _auth.signOut();
   }
   
-  // Opdater password (hvis brugeren vil ændre det senere)
+  // Opdater password
   Future<void> updatePassword(String newPassword) async {
     if (currentUser != null) {
       await currentUser!.updatePassword(newPassword);
+    }
+  }
+
+  // Slet konto (Kræver password for sikkerhed - Re-authentication)
+  Future<void> deleteAccount(String password) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) return;
+
+    try {
+      // 1. Re-autentificer brugeren (Sikkerhedskrav fra Firebase før sletning)
+      AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!, 
+        password: password
+      );
+      
+      await user.reauthenticateWithCredential(credential);
+
+      // 2. Slet brugeren fra Authentication systemet
+      // Bemærk: Selve data-oprydningen i Firestore bør ske FØR dette kald (i UI logikken)
+      await user.delete();
+    } catch (e) {
+      rethrow;
     }
   }
 }

@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models.dart';
 import '../models/todo_list.dart';
-import '../models/user_profile.dart'; // Husk import
+import '../models/user_profile.dart';
 import '../repository.dart';
 
 class FirestoreService implements TaskRepository {
@@ -17,8 +17,7 @@ class FirestoreService implements TaskRepository {
     'Generelt', 'Arbejde', 'Personlig', 'Studie', 'Indkøb',
   ];
   
-  // --- HENT BRUGER PROFIL (NY) ---
-  // Bruges til ProfileScreen
+  // --- HENT BRUGER PROFIL ---
   Future<UserProfile?> getUserProfile() async {
     final doc = await _userDoc.get();
     if (doc.exists && doc.data() != null) {
@@ -27,19 +26,45 @@ class FirestoreService implements TaskRepository {
     return null;
   }
   
-  // --- OPDATER PROFIL (NY) ---
-  Future<void> updateUserProfile(Map<String, dynamic> data) async {
-    await _userDoc.update(data);
+  // --- OPDATER PROFIL (REDIGERING) ---
+  // Vi opdaterer kun de felter, der er tilladt at ændre i profilen
+  Future<void> updateUserProfile(UserProfile updatedProfile) async {
+    await _userDoc.update({
+      'firstName': updatedProfile.firstName,
+      'lastName': updatedProfile.lastName,
+      'phoneNumber': updatedProfile.phoneNumber,
+      'company': updatedProfile.company,
+      'country': updatedProfile.country,
+    });
   }
-  //scomplete status
-@override
-  Future<void> updateList(TodoList list) async {
-    // Vi bruger toMap til at opdatere dokumentet. 
-    // Dette opdaterer både titel, medlemmer og nu showCompleted.
-    await _listsCollection.doc(list.id).update(list.toMap());
+
+  // --- SLET AL BRUGERDATA (DATA CLEANUP) ---
+  // Denne metode kaldes før Auth-sletning for at undgå "orphaned data"
+  Future<void> deleteUserData() async {
+    // 1. Find alle lister hvor brugeren er medlem
+    final snapshot = await _listsCollection.where('memberIds', arrayContains: _userId).get();
+    
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final ownerId = data['ownerId'];
+      
+      if (ownerId == _userId) {
+        // A. Hvis brugeren ejer listen -> SLET LISTEN
+        // (Ideelt set burde vi slette subcollection 'tasks' først, men for nu sletter vi listen)
+        await _listsCollection.doc(doc.id).delete();
+      } else {
+        // B. Hvis brugeren bare er medlem -> FJERN FRA MEMBERIDS
+        await _listsCollection.doc(doc.id).update({
+          'memberIds': FieldValue.arrayRemove([_userId])
+        });
+      }
+    }
+
+    // 2. Slet selve bruger-dokumentet
+    await _userDoc.delete();
   }
-  // --- MEDLEMS DETALJER (OPDATERET) ---
-  // Nu henter vi Navn+Efternavn i stedet for email hvis muligt
+
+  // --- MEDLEMS DETALJER ---
   @override
   Future<List<Map<String, String>>> getMembersDetails(List<String> memberIds) async {
     if (memberIds.isEmpty) return [];
@@ -54,15 +79,14 @@ class FirestoreService implements TaskRepository {
           final data = doc.data()!;
           String displayName = data['email'] ?? 'Ukendt';
           
-          // Hvis vi har fornavn og efternavn, så brug det!
           if (data['firstName'] != null && data['lastName'] != null) {
             displayName = "${data['firstName']} ${data['lastName']}";
           }
           
           members.add({
             'id': id,
-            'email': data['email'] as String, // Vi beholder email til identifikation
-            'displayName': displayName,      // Det navn vi viser i UI
+            'email': data['email'] as String,
+            'displayName': displayName,
           });
         } else {
           members.add({
@@ -78,10 +102,6 @@ class FirestoreService implements TaskRepository {
     return members;
   }
 
-  // ... (RESTEN AF FILEN ER UÆNDRET. KOPIER DINE EKSISTERENDE METODER IND HER)
-  // For at holde svaret kort, udelader jeg de metoder vi lavede sidst (getTasks, createList osv.),
-  // da de ikke skal ændres. Du skal bare beholde dem.
-  
   @override Future<void> ensureUserDocument(String email) async { /* ... */ }
   @override Future<List<TodoList>> getLists() async {
     final snapshot = await _listsCollection.where('memberIds', arrayContains: _userId).get();
@@ -94,6 +114,12 @@ class FirestoreService implements TaskRepository {
     listData['memberIds'] = members;
     await _listsCollection.doc(list.id).set(listData);
   }
+
+  @override
+  Future<void> updateList(TodoList list) async {
+    await _listsCollection.doc(list.id).update(list.toMap());
+  }
+
   @override Future<void> deleteList(String listId) async {
     final doc = await _listsCollection.doc(listId).get();
     if (doc.exists) {
