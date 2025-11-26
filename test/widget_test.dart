@@ -19,35 +19,29 @@ class MockNotificationService implements NotificationService {
   @override
   Future<void> requestPermissions() async {}
 
+  // RETTET: Opdateret til at matche den rigtige showNotification
   @override
-  Future<void> showTimerCompleteNotification({required String title, required String body, bool isWorkSession = true}) async {}
+  Future<void> showNotification({required int id, required String title, required String body}) async {}
 
+  // RETTET: Opdateret til at matche den rigtige scheduleTaskNotification
   @override
-  Future<void> scheduleDeadlineNotification({required int id, required String taskTitle, required DateTime dueDate}) async {}
+  Future<void> scheduleTaskNotification({required int id, required String title, required String body, required DateTime scheduledDate}) async {}
 
   @override
   Future<void> cancelNotification(int id) async {}
 }
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('Basic app smoke test', (WidgetTester tester) async {
     // Opret en instans af vores mock service
     final mockNotificationService = MockNotificationService();
 
     // Build our app and trigger a frame.
-    // Her sender vi mock servicen med
+    // RETTET: Vi fjerner 'const' og sender mock servicen med
     await tester.pumpWidget(GenDoApp(notificationService: mockNotificationService));
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Da din app starter på LoginScreen eller MainScreen, vil standard "Counter" testen fejle.
+    // Du bør skrive tests der kigger efter widgets der faktisk findes, f.eks.:
+    // expect(find.byType(LoginScreen), findsOneWidget);
   });
 }

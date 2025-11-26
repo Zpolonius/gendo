@@ -30,12 +30,6 @@ class TaskCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateFormatter = DateFormat('dd/MM');
 
-    // Beregn steps info
-    final totalSteps = task.steps.length;
-    final completedSteps = task.steps.where((s) => s.isCompleted).length;
-    final hasSteps = totalSteps > 0;
-    final hasDate = task.dueDate != null;
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -73,51 +67,21 @@ class TaskCard extends StatelessWidget {
             )
           ),
           
-          // SUBTITLE: Dato og/eller Steps status
-          subtitle: (hasDate || hasSteps) 
+          subtitle: (task.dueDate != null) 
             ? Padding(
-                padding: const EdgeInsets.only(top: 6.0),
+                padding: const EdgeInsets.only(top: 4.0),
                 child: Row(
                   children: [
-                    // 1. Vis Dato hvis den findes
-                    if (hasDate) ...[
-                      Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
-                      const SizedBox(width: 4),
-                      Text(
-                        dateFormatter.format(task.dueDate!),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                      ),
-                    ],
-
-                    // Separator prik, hvis vi har BÅDE dato og steps
-                    if (hasDate && hasSteps)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Text("•", style: TextStyle(color: Colors.grey[400], fontSize: 10)),
-                      ),
-
-                    // 2. Vis Steps hvis de findes
-                    if (hasSteps) ...[
-                      // Skift farve til grøn hvis alle delopgaver er færdige
-                      Icon(
-                        Icons.checklist_rtl_rounded, 
-                        size: 14, 
-                        color: (completedSteps == totalSteps) ? Colors.green : Colors.grey[500]
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        "$completedSteps/$totalSteps",
-                        style: TextStyle(
-                          fontSize: 12, 
-                          color: (completedSteps == totalSteps) ? Colors.green : Colors.grey[500],
-                          fontWeight: (completedSteps == totalSteps) ? FontWeight.bold : FontWeight.normal
-                        ),
-                      ),
-                    ]
+                    Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
+                    const SizedBox(width: 4),
+                    Text(
+                      dateFormatter.format(task.dueDate!),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    ),
                   ],
                 ),
               )
-            : null, // Hvis intet info, vis ingen subtitle
+            : null, // Hvis ingen dato, vis ingen subtitle
           
           // TRAILING: TJEKBOKS
           trailing: IconButton(

@@ -4,22 +4,24 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'models.dart';
 import 'models/todo_list.dart';
 import 'repository.dart';
-import 'services/notification_service.dart'; // NY IMPORT
+import 'services/notification_service.dart';
+import 'mixins/recurring_task_handler.dart'; // HUSK IMPORT
 
 enum TimerStatus { idle, working, finishedWork, onBreak }
 
-class AppViewModel extends ChangeNotifier {
+class AppViewModel extends ChangeNotifier with RecurringTaskHandler {
   TaskRepository _repository;
-  final NotificationService _notificationService; // NY FELT
-
+  final NotificationService _notificationService = NotificationService();
+  
   // --- STATE ---
   List<TodoList> _lists = [];
   String? _activeListId;
-  Map<String, List<TodoTask>> _tasksByList = {};
+  final Map<String, List<TodoTask>> _tasksByList = {};
   List<String> _categories = [];
   
   bool _isLoading = false;
   bool _isDarkMode = false;
+  bool _showCompleted = true; 
   
   // --- POMODORO ---
   PomodoroSettings _pomodoroSettings = PomodoroSettings(); 
@@ -30,8 +32,8 @@ class AppViewModel extends ChangeNotifier {
   int _sessionsCompleted = 0;
   String? _selectedTaskId;
 
-  // OPDATERET KONSTRUKTØR: Modtager NotificationService
-  AppViewModel(this._repository, this._notificationService) {
+  AppViewModel(this._repository, NotificationService notificationService) {
+    _notificationService.init();
     loadData();
   }
 
@@ -40,12 +42,30 @@ class AppViewModel extends ChangeNotifier {
     loadData();
   }
 
-  // ... (Getters er uændrede) ...
+  // --- GETTERS TIL MIXIN OG UI ---
+  // Disse skal være public for at Mixin kan se dem
+  @override
+  TaskRepository get repository => _repository;
+  
+  @override
+  NotificationService get notificationService => _notificationService;
+  
+  @override
+  Map<String, List<TodoTask>> get tasksByList => _tasksByList;
+
   List<TodoList> get lists => _lists;
   String? get activeListId => _activeListId;
   List<TodoTask> get allTasks => _tasksByList.values.expand((x) => x).toList();
-  List<TodoTask> get currentTasks => _activeListId != null ? (_tasksByList[_activeListId!] ?? []) : [];
+  
+  List<TodoTask> get currentTasks {
+    if (_activeListId == null) return [];
+    final tasks = _tasksByList[_activeListId!] ?? [];
+    if (_showCompleted) return tasks;
+    return tasks.where((t) => !t.isCompleted).toList();
+  }
+
   bool get isDarkMode => _isDarkMode;
+  bool get showCompleted => _showCompleted; 
   List<String> get categories => _categories;
   PomodoroSettings get pomodoroSettings => _pomodoroSettings;
   bool get isLoading => _isLoading;
@@ -65,53 +85,71 @@ class AppViewModel extends ChangeNotifier {
       return null;
     }
   }
+  
   double get progress => _pomodoroDurationTotal == 0 ? 0 : 1.0 - (_pomodoroTimeLeft / _pomodoroDurationTotal);
 
-  // ... (Data Loading, Lister metoder er uændrede) ...
+  // --- DATA LOADING ---
+
   Future<void> loadData() async {
     _isLoading = true;
     notifyListeners();
+    
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && user.email != null) {
         await _repository.checkPendingInvites(user.email!);
       }
+
       final results = await Future.wait([
         _repository.getLists(),
         _repository.getCategories(),
         _repository.getThemePreference(),
         _repository.getPomodoroSettings(),
       ]);
+      
       _lists = results[0] as List<TodoList>;
       _categories = results[1] as List<String>;
       _isDarkMode = results[2] as bool;
       _pomodoroSettings = results[3] as PomodoroSettings;
+
       if (_activeListId == null && _lists.isNotEmpty) {
         _activeListId = _lists.first.id;
       }
+
       for (var list in _lists) {
         final tasks = await _repository.getTasks(list.id);
         _tasksByList[list.id] = tasks;
       }
+
       if (_timerStatus == TimerStatus.idle) {
         _pomodoroDurationTotal = _pomodoroSettings.workDurationMinutes * 60;
         _pomodoroTimeLeft = _pomodoroDurationTotal;
       }
+
     } catch (e) {
       print("Fejl ved load: $e");
     }
+    
     _isLoading = false;
     notifyListeners();
   }
+
+  // --- LISTER ---
 
   void setActiveList(String listId) {
     _activeListId = listId;
     notifyListeners();
   }
 
+  void toggleListShowCompleted() {
+    _showCompleted = !_showCompleted;
+    notifyListeners();
+  }
+
   Future<void> createList(String title) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+
     final newList = TodoList(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: title,
@@ -119,15 +157,18 @@ class AppViewModel extends ChangeNotifier {
       memberIds: [user.uid],
       createdAt: DateTime.now(),
     );
+
     await _repository.createList(newList);
     _lists.add(newList);
     _tasksByList[newList.id] = []; 
     _activeListId = newList.id; 
     notifyListeners();
   }
+
   Future<void> inviteUser(String listId, String email) async {
     await _repository.inviteUserByEmail(listId, email);
   }
+
   Future<List<Map<String, String>>> getListMembers(String listId) async {
     try {
       final list = _lists.firstWhere((l) => l.id == listId);
@@ -136,10 +177,12 @@ class AppViewModel extends ChangeNotifier {
       return [];
     }
   }
+
   Future<void> removeMember(String listId, String userId) async {
     await _repository.removeUserFromList(listId, userId);
     await loadData(); 
   }
+
   Future<void> deleteList(String listId) async {
     await _repository.deleteList(listId);
     _lists.removeWhere((l) => l.id == listId);
@@ -149,25 +192,10 @@ class AppViewModel extends ChangeNotifier {
     }
     notifyListeners();
   }
-  Future<void> toggleListShowCompleted(String listId) async {
-    final index = _lists.indexWhere((l) => l.id == listId);
-    if (index == -1) return;
-    final currentList = _lists[index];
-    final updatedList = currentList.copyWith(showCompleted: !currentList.showCompleted);
-    _lists[index] = updatedList;
-    notifyListeners();
-    try {
-      await _repository.updateList(updatedList);
-    } catch (e) {
-      print("Fejl ved opdatering af liste: $e");
-      _lists[index] = currentList;
-      notifyListeners();
-    }
-  }
 
-  // --- OPGAVER (OPDATERET MED NOTIFIKATIONER) ---
+  // --- OPGAVER ---
 
-  Future<String> addTask(String title, {String category = 'Generelt', String description = '', TaskPriority priority = TaskPriority.low, DateTime? dueDate, String? listId}) async {
+  Future<String> addTask(String title, {String category = 'Generelt', String description = '', TaskPriority priority = TaskPriority.medium, DateTime? dueDate, String? listId, TaskRepeat repeat = TaskRepeat.never}) async {
     final targetListId = listId ?? _activeListId;
     if (targetListId == null) return '';
 
@@ -181,6 +209,7 @@ class AppViewModel extends ChangeNotifier {
       description: description,
       priority: priority,
       dueDate: dueDate,
+      repeat: repeat, 
       createdAt: DateTime.now(),
       listId: targetListId, 
     );
@@ -188,19 +217,28 @@ class AppViewModel extends ChangeNotifier {
     await _repository.addTask(newTask);
     if (_tasksByList[targetListId] == null) _tasksByList[targetListId] = [];
     _tasksByList[targetListId]!.add(newTask);
-
-    // NYT: Planlæg notifikation hvis der er en deadline
+    
     if (dueDate != null) {
-      // Vi bruger string-id konverteret til int hashcode som ID for notifikationen
-      _notificationService.scheduleDeadlineNotification(
-        id: newTask.id.hashCode, 
-        taskTitle: newTask.title, 
-        dueDate: dueDate
+      await scheduleTaskNotification(
+        id: newTask.hashCode, 
+        title: "Deadline: $title",
+        body: description.isNotEmpty ? description : "Husk din opgave!",
+        scheduledDate: dueDate,
       );
     }
 
     notifyListeners();
+    
     return newId;
+  }
+
+  Future<void> scheduleTaskNotification({required int id, required String title, required String body, required DateTime scheduledDate}) async {
+    await _notificationService.scheduleTaskNotification(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: scheduledDate,
+    );
   }
 
   Future<void> toggleTask(String taskId) async {
@@ -208,23 +246,46 @@ class AppViewModel extends ChangeNotifier {
       final index = _tasksByList[listId]!.indexWhere((t) => t.id == taskId);
       if (index != -1) {
         var task = _tasksByList[listId]![index];
-        final updatedTask = task.copyWith(isCompleted: !task.isCompleted);
-        await _repository.updateTask(updatedTask);
-        _tasksByList[listId]![index] = updatedTask;
         
-        // NYT: Hvis opgaven er færdig, aflys evt. påmindelse. Hvis genåbnet, kunne vi genskabe den (udeladt for simplicitet)
-        if (updatedTask.isCompleted) {
-           _notificationService.cancelNotification(updatedTask.id.hashCode);
+        // BRUGER NU MIXIN TIL GENTAGELSE
+        if (!task.isCompleted && task.repeat != TaskRepeat.never) {
+          await handleRecurringTaskCompletion(task, listId, index);
+        } else {
+          final updatedTask = task.copyWith(isCompleted: !task.isCompleted);
+          await _repository.updateTask(updatedTask);
+          _tasksByList[listId]![index] = updatedTask;
+          
+          if (updatedTask.isCompleted) {
+            _notificationService.cancelNotification(updatedTask.hashCode);
+          } else if (updatedTask.dueDate != null && updatedTask.dueDate!.isAfter(DateTime.now())) {
+             scheduleTaskNotification(
+              id: updatedTask.hashCode,
+              title: "Deadline: ${updatedTask.title}",
+              body: updatedTask.description,
+              scheduledDate: updatedTask.dueDate!,
+            );
+          }
         }
-
+        
         notifyListeners();
         return;
       }
     }
   }
 
-  // OPDATERET: Håndter deadline ændringer
+  // Bemærk: _handleRecurringTaskCompletion er fjernet herfra, da den nu ligger i Mixin'en.
+
   Future<void> updateTaskDetails(TodoTask task, {String? oldListId}) async {
+    _notificationService.cancelNotification(task.hashCode); 
+    if (task.dueDate != null && !task.isCompleted && task.dueDate!.isAfter(DateTime.now())) {
+       await scheduleTaskNotification(
+        id: task.hashCode,
+        title: "Deadline: ${task.title}",
+        body: task.description,
+        scheduledDate: task.dueDate!,
+      );
+    }
+
     if (oldListId != null && oldListId != task.listId) {
       await _repository.deleteTask(oldListId, task.id);
       await _repository.addTask(task);
@@ -234,6 +295,7 @@ class AppViewModel extends ChangeNotifier {
       }
       if (_tasksByList[task.listId] == null) _tasksByList[task.listId] = [];
       _tasksByList[task.listId]!.add(task);
+
     } else {
       await _repository.updateTask(task);
       final list = _tasksByList[task.listId];
@@ -244,41 +306,36 @@ class AppViewModel extends ChangeNotifier {
         }
       }
     }
-    
-    // NYT: Opdater notifikation hvis deadline er ændret
-    if (task.dueDate != null && !task.isCompleted) {
-       _notificationService.scheduleDeadlineNotification(
-        id: task.id.hashCode, 
-        taskTitle: task.title, 
-        dueDate: task.dueDate!
-      );
-    } else {
-      _notificationService.cancelNotification(task.id.hashCode);
-    }
-
     notifyListeners();
   }
 
   Future<void> deleteTask(String taskId) async {
     String? listIdFound;
+    TodoTask? taskToDelete;
+
     for (var entry in _tasksByList.entries) {
-      if (entry.value.any((t) => t.id == taskId)) {
+      try {
+        taskToDelete = entry.value.firstWhere((t) => t.id == taskId);
         listIdFound = entry.key;
         break;
+      } catch (e) {
+        continue;
       }
     }
-    if (listIdFound != null) {
+    
+    if (listIdFound != null && taskToDelete != null) {
       await _repository.deleteTask(listIdFound, taskId);
       _tasksByList[listIdFound]!.removeWhere((t) => t.id == taskId);
+      
+      _notificationService.cancelNotification(taskToDelete.hashCode);
+
       if (_selectedTaskId == taskId) _selectedTaskId = null;
-      
-      // NYT: Aflys notifikation
-      _notificationService.cancelNotification(taskId.hashCode);
-      
       notifyListeners();
     }
   }
   
+  // --- KATEGORIER & THEME ---
+
   Future<void> addNewCategory(String category) async { 
     if (category.trim().isEmpty) return; 
     await _repository.addCategory(category); 
@@ -321,6 +378,7 @@ class AppViewModel extends ChangeNotifier {
   void startTimer() { 
     if (_timer != null) return; 
     if (_timerStatus == TimerStatus.idle) _timerStatus = TimerStatus.working; 
+    
     notifyListeners(); 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) { 
       if (_pomodoroTimeLeft > 0) { 
@@ -343,23 +401,22 @@ class AppViewModel extends ChangeNotifier {
     notifyListeners(); 
   }
   
-  // NYT: Trigger notifikation når timeren er slut
   void _handleTimerComplete() { 
     if (_timerStatus == TimerStatus.working) { 
-      _timerStatus = TimerStatus.finishedWork;
-      // Send notifikation om pause
-      _notificationService.showTimerCompleteNotification(
-        title: "Godt gået! 🎉",
-        body: "Fokus-sessionen er slut. Tid til en pause?",
-        isWorkSession: true
+      _timerStatus = TimerStatus.finishedWork; 
+      
+      _notificationService.showNotification(
+        id: 888, 
+        title: "Tiden er gået! 🍅", 
+        body: "Godt klaret! Tag en pause eller start en ny session."
       );
+
     } else if (_timerStatus == TimerStatus.onBreak) { 
       resetTimer(); 
-      // Send notifikation om arbejde
-      _notificationService.showTimerCompleteNotification(
-        title: "Pausen er slut! 🚀",
-        body: "Klar til at fokusere igen?",
-        isWorkSession: false
+      _notificationService.showNotification(
+        id: 889, 
+        title: "Pausen er slut! ☕️", 
+        body: "Klar til at arbejde igen?"
       );
     } 
   }
@@ -376,18 +433,12 @@ class AppViewModel extends ChangeNotifier {
     startBreak(breakMinutes); 
   }
 
-  Future<void> completeTaskAndContinue() async {
-    final task = selectedTaskObj;
-    if (task == null) return;
-    final sessionTimeSpent = _pomodoroDurationTotal - _pomodoroTimeLeft;
-    final updatedTask = task.copyWith(
-      isCompleted: true,
-      timeSpent: task.timeSpent + sessionTimeSpent,
-    );
-    await updateTaskDetails(updatedTask);
-    _pomodoroDurationTotal = _pomodoroTimeLeft;
-    _selectedTaskId = null;
-    notifyListeners();
+  Future completeTaskAndContinue() async {
+    if (_selectedTaskId != null) {
+      toggleTask(_selectedTaskId!);
+      _selectedTaskId = null; 
+      notifyListeners();
+    }
   }
   
   void startBreak(int minutes) { 

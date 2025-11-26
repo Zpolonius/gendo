@@ -14,11 +14,16 @@ class NotificationService {
   Future<void> init() async {
     // 1. Initialiser tidszoner til scheduling
     tz.initializeTimeZones();
-    final String timeZoneName = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(timeZoneName));
+    // Hent enhedens tidszone sikkert
+    try {
+      final String timeZoneName = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+    } catch (e) {
+      // Fallback hvis tidszone fejler
+      tz.setLocalLocation(tz.getLocation('Europe/Copenhagen'));
+    }
 
     // 2. Android indstillinger
-    // Vi bruger standard app ikonet ('@mipmap/launcher_icon')
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/launcher_icon');
 
@@ -39,28 +44,39 @@ class NotificationService {
     await _notifications.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Her kan vi håndtere hvis brugeren trykker på notifikationen
         print("Bruger trykkede på notifikation: ${response.payload}");
       },
     );
     
-    // Opret kanal til Android (kræves for lyd/vibration)
-    await _createNotificationChannel();
+    // Opret kanaler til Android (vigtigt for lyd/prioritet)
+    await _createNotificationChannels();
   }
   
-  Future<void> _createNotificationChannel() async {
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'gendo_timer_channel', // id
-      'Timer & Fokus', // title
-      description: 'Notifikationer når tiden er gået', // description
+  Future<void> _createNotificationChannels() async {
+    // Kanal til Timer (Høj prioritet, lyd)
+    const AndroidNotificationChannel timerChannel = AndroidNotificationChannel(
+      'gendo_timer_channel', 
+      'Timer & Fokus', 
+      description: 'Notifikationer når tiden er gået',
       importance: Importance.max,
       playSound: true,
-      // sound: RawResourceAndroidNotificationSound('alarm_sound'), // HVIS DU HAR CUSTOM LYD
     );
 
-    await _notifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    // Kanal til Opgaver (Deadlines)
+    const AndroidNotificationChannel taskChannel = AndroidNotificationChannel(
+      'gendo_task_channel', 
+      'Opgave Påmindelser', 
+      description: 'Påmindelser om deadlines',
+      importance: Importance.high,
+      playSound: true,
+    );
+
+    final androidPlugin = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannel(timerChannel);
+      await androidPlugin.createNotificationChannel(taskChannel);
+    }
   }
 
   Future<void> requestPermissions() async {
@@ -82,67 +98,71 @@ class NotificationService {
     }
   }
 
-  // --- SEND STRAKS (Til Timer) ---
-  Future<void> showTimerCompleteNotification({
-    required String title, 
+  // --- VIS STRAKS (Bruges af Timer i ViewModel) ---
+  Future<void> showNotification({
+    required int id,
+    required String title,
     required String body,
-    bool isWorkSession = true
   }) async {
     await _notifications.show(
-      0, // ID (0 for timer, vi overskriver bare)
+      id,
       title,
       body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          'gendo_timer_channel',
+          'gendo_timer_channel', // Matcher kanalen oprettet ovenfor
           'Timer & Fokus',
           channelDescription: 'Notifikationer når tiden er gået',
           importance: Importance.max,
           priority: Priority.high,
           ticker: 'ticker',
           playSound: true,
-          // sound: RawResourceAndroidNotificationSound('alarm_sound'), // HVIS DU HAR CUSTOM LYD
         ),
         iOS: DarwinNotificationDetails(
           presentSound: true,
           presentAlert: true,
           presentBanner: true,
-          // sound: 'alarm_sound.aiff', // HVIS DU HAR CUSTOM LYD PÅ IOS
         ),
       ),
-      payload: isWorkSession ? 'work_complete' : 'break_complete',
+      payload: 'timer_complete',
     );
   }
 
-  // --- SCHEDULE DEADLINE (Kl. 08:00 på dagen) ---
-  Future<void> scheduleDeadlineNotification({
-    required int id, // Brug opgavens hashcode som ID
-    required String taskTitle,
-    required DateTime dueDate,
+  // --- PLANLÆG OPGAVE (Bruges når opgaver oprettes/opdateres) ---
+  Future<void> scheduleTaskNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
   }) async {
-    // Sæt tidspunktet til kl 08:00 på deadline dagen
-    final scheduledDate = DateTime(
-      dueDate.year,
-      dueDate.month,
-      dueDate.day,
-      8, // Klokken 8
-      0,
-    );
+    // Hvis datoen er i fortiden, undlad at planlægge
+    if (scheduledDate.isBefore(DateTime.now())) return;
 
-    // Hvis klokken allerede er passeret 8 i dag, så skip (eller planlæg til næste år, men her skipper vi bare)
-    if (scheduledDate.isBefore(DateTime.now())) {
-      return; 
+    // Sætter tidspunktet til kl 08:00 hvis det er en "ren" dato (altså kl 00:00)
+    // Dette sikrer at man ikke bliver vækket ved midnat hvis man bare vælger en dato.
+    DateTime notificationTime = scheduledDate;
+    if (scheduledDate.hour == 0 && scheduledDate.minute == 0) {
+      notificationTime = DateTime(
+        scheduledDate.year,
+        scheduledDate.month,
+        scheduledDate.day,
+        8, // Kl. 08:00 om morgenen
+        0
+      );
+      // Hvis klokken allerede er over 8 i dag, så planlæg ikke (eller gør det med det samme?)
+      // Her skipper vi bare for sikkerheds skyld hvis tidspunktet er passeret
+      if (notificationTime.isBefore(DateTime.now())) return;
     }
 
     await _notifications.zonedSchedule(
       id,
-      'Deadline i dag! 📅',
-      'Husk at få lavet: "$taskTitle"',
-      tz.TZDateTime.from(scheduledDate, tz.local),
+      title,
+      body,
+      tz.TZDateTime.from(notificationTime, tz.local),
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          'gendo_deadline_channel',
-          'Deadlines',
+          'gendo_task_channel',
+          'Opgave Påmindelser',
           channelDescription: 'Påmindelser om deadlines',
           importance: Importance.high,
           priority: Priority.high,

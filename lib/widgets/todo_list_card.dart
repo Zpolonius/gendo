@@ -95,29 +95,25 @@ class _TodoListCardState extends State<TodoListCard> {
 
     // 1. Hent alle opgaver til denne liste
     final allListTasks = widget.vm.allTasks.where((t) => t.listId == widget.list.id).toList();
-    final showCompleted = widget.list.showCompleted;
+    
+    // RETTELSE 1: Brug viewmodel'ens state i stedet for listens (som ikke har feltet)
+    final showCompleted = widget.vm.showCompleted;
     
     // 2. Filtrer listen: Skal vi vise alt eller kun aktive?
-    // Vi bruger List.from() for at lave en kopi vi kan sortere i
     List<TodoTask> visibleTasks = List.from(
       showCompleted 
           ? allListTasks 
           : allListTasks.where((t) => !t.isCompleted)
     );
 
-    // 3. SORTERING (NY LOGIK)
+    // 3. SORTERING
     visibleTasks.sort((a, b) {
-      // Regel 1: Færdige opgaver skal altid nederst
       if (a.isCompleted != b.isCompleted) {
-        return a.isCompleted ? 1 : -1; // Hvis a er færdig (true), ryger den bagud (1)
+        return a.isCompleted ? 1 : -1; 
       }
-      
-      // Regel 2: Hvis begge har samme status, sorter efter nyeste først (createdAt)
-      // Dette sikrer at listen ikke "hopper rundt" tilfældigt
       return b.createdAt.compareTo(a.createdAt);
     });
 
-    // Statistik til undertitlen
     final activeCount = allListTasks.where((t) => !t.isCompleted).length;
 
     return Card(
@@ -159,7 +155,8 @@ class _TodoListCardState extends State<TodoListCard> {
             onSelected: (value) {
               if (value == 'members') _showMembersDialog(context);
               if (value == 'delete') _showDeleteListDialog(context);
-              if (value == 'toggle_completed') widget.vm.toggleListShowCompleted(widget.list.id);
+              // RETTELSE 2: Kald metoden uden argumenter (Global toggle)
+              if (value == 'toggle_completed') widget.vm.toggleListShowCompleted();
             },
             itemBuilder: (context) => [
               const PopupMenuItem(
@@ -237,7 +234,8 @@ class _TodoListCardState extends State<TodoListCard> {
                     ),
                     if (allListTasks.isNotEmpty && !showCompleted)
                       TextButton(
-                        onPressed: () => widget.vm.toggleListShowCompleted(widget.list.id),
+                        // RETTELSE 3: Også her, kald uden argumenter
+                        onPressed: () => widget.vm.toggleListShowCompleted(),
                         child: const Text("Vis færdige opgaver", style: TextStyle(fontSize: 12)),
                       )
                   ],

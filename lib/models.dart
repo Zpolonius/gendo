@@ -1,8 +1,9 @@
-// lib/models.dart
-
 enum TaskPriority { low, medium, high }
 
-// --- TASK STEP MODEL -
+// ENUM: Gentagelsesfrekvens
+enum TaskRepeat { never, daily, weekly, monthly }
+
+// --- TASK STEP MODEL ---
 class TaskStep {
   final String id;
   final String title;
@@ -41,7 +42,6 @@ class TaskStep {
   }
 }
 
-// --- TODO TASK MODEL ---
 class TodoTask {
   final String id;
   final String title;
@@ -49,11 +49,11 @@ class TodoTask {
   final String description;
   final DateTime? dueDate;
   final TaskPriority priority;
-  final bool isCompleted; // Rettelse: Gjort final for immutability
+  final TaskRepeat repeat; // Gentagelse
+  final bool isCompleted;
   final DateTime createdAt;
   final String listId;
-  final int timeSpent;
-  final List<TaskStep> steps; // NYT FELT: Listen af delopgaver
+  final List<TaskStep> steps; // Delopgaver
 
   TodoTask({
     required this.id,
@@ -61,11 +61,11 @@ class TodoTask {
     this.category = 'Generelt',
     this.description = '',
     this.dueDate,
-    this.priority = TaskPriority.low,
+    this.priority = TaskPriority.medium,
+    this.repeat = TaskRepeat.never,
     this.isCompleted = false,
     required this.createdAt,
     this.listId = '',
-    this.timeSpent = 0,
     this.steps = const [], // Default tom liste
   });
 
@@ -76,11 +76,11 @@ class TodoTask {
     String? description,
     DateTime? dueDate,
     TaskPriority? priority,
+    TaskRepeat? repeat,
     bool? isCompleted,
     DateTime? createdAt,
     String? listId,
-    int? timeSpent,
-    List<TaskStep>? steps, // Mulighed for at opdatere steps
+    List<TaskStep>? steps,
   }) {
     return TodoTask(
       id: id ?? this.id,
@@ -89,11 +89,11 @@ class TodoTask {
       description: description ?? this.description,
       dueDate: dueDate ?? this.dueDate,
       priority: priority ?? this.priority,
+      repeat: repeat ?? this.repeat,
       isCompleted: isCompleted ?? this.isCompleted,
       createdAt: createdAt ?? this.createdAt,
       listId: listId ?? this.listId,
-      timeSpent: timeSpent ?? this.timeSpent,
-      steps: steps ?? this.steps, // Beholder eksisterende steps hvis null
+      steps: steps ?? this.steps,
     );
   }
 
@@ -105,12 +105,11 @@ class TodoTask {
       'description': description,
       'dueDate': dueDate?.millisecondsSinceEpoch,
       'priority': priority.index,
+      'repeat': repeat.index,
       'isCompleted': isCompleted,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'listId': listId,
-      'timeSpent': timeSpent,
-      // Konverterer listen af TaskStep objekter til en liste af Maps for Firebase
-      'steps': steps.map((x) => x.toMap()).toList(), 
+      'steps': steps.map((x) => x.toMap()).toList(), // Serialiser steps
     };
   }
 
@@ -121,12 +120,12 @@ class TodoTask {
       category: map['category'] ?? 'Generelt',
       description: map['description'] ?? '',
       dueDate: map['dueDate'] != null ? DateTime.fromMillisecondsSinceEpoch(map['dueDate']) : null,
-      priority: TaskPriority.values[map['priority'] ?? 0], // Rettelse: 0 matcher low (default)
+      priority: TaskPriority.values[map['priority'] ?? 1],
+      repeat: map['repeat'] != null ? TaskRepeat.values[map['repeat']] : TaskRepeat.never,
       isCompleted: map['isCompleted'] ?? false,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? DateTime.now().millisecondsSinceEpoch),
       listId: map['listId'] ?? '',
-      timeSpent: map['timeSpent'] ?? 0,
-      // Konverterer listen fra Firebase (List<dynamic>) tilbage til List<TaskStep>
+      // Deserialiser steps
       steps: map['steps'] != null 
           ? List<TaskStep>.from(map['steps']?.map((x) => TaskStep.fromMap(x)))
           : [],
@@ -134,7 +133,7 @@ class TodoTask {
   }
 }
 
-// --- POMODORO SETTINGS ---
+// ... PomodoroSettings class forbliver uændret ...
 class PomodoroSettings {
   final int workDurationMinutes;
   final bool enableBreaks;

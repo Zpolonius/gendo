@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import '../models.dart';
+import '../models/todo_list.dart';
+
 import '../viewmodel.dart';
+import '../widgets/category_selector.dart';
 import '../widgets/priority_selector.dart';
 import '../widgets/date_selector.dart';
 import '../widgets/todo_list_card.dart';
+import '../widgets/repeat_selector.dart'; // NY IMPORT
 
 class TodoListScreen extends StatefulWidget {
   final Function(int) onSwitchTab; 
@@ -17,7 +22,6 @@ class TodoListScreen extends StatefulWidget {
 }
 
 class _TodoListScreenState extends State<TodoListScreen> {
-  // State til at styre om FAB-menuen er åben
   bool _isFabExpanded = false;
 
   @override
@@ -26,19 +30,16 @@ class _TodoListScreenState extends State<TodoListScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      // --- SPEED DIAL FAB (Udvidelig knap) ---
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Hvis menuen er åben, vis de to valgmuligheder
           if (_isFabExpanded) ...[
-            // Knap 1: Ny Liste
             FloatingActionButton.extended(
               heroTag: 'add_list_btn',
               onPressed: () {
-                setState(() => _isFabExpanded = false); // Luk menuen
+                setState(() => _isFabExpanded = false);
                 _showCreateListDialog(context, vm);
               },
               backgroundColor: theme.colorScheme.surface,
@@ -48,11 +49,10 @@ class _TodoListScreenState extends State<TodoListScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Knap 2: Ny Opgave (Åbner den store dialog)
             FloatingActionButton.extended(
               heroTag: 'add_task_btn',
               onPressed: () {
-                setState(() => _isFabExpanded = false); // Luk menuen
+                setState(() => _isFabExpanded = false);
                 _showAddDialog(context, vm);
               },
               backgroundColor: theme.colorScheme.primary,
@@ -63,7 +63,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
             const SizedBox(height: 16),
           ],
 
-          // Hovedknappen (Åbn/Luk)
           FloatingActionButton(
             heroTag: 'main_fab',
             onPressed: () {
@@ -81,7 +80,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
         ],
       ),
       
-      // Klik på baggrunden for at lukke menuen
       body: GestureDetector(
         onTap: () {
           if (_isFabExpanded) setState(() => _isFabExpanded = false);
@@ -90,7 +88,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
         behavior: HitTestBehavior.translucent,
         child: Column(
           children: [
-            // --- HEADER ---
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
               child: Align(
@@ -107,7 +104,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
               ),
             ),
 
-            // --- LISTE OVER LISTER ---
             Expanded(
               child: vm.lists.isEmpty 
                 ? Center(
@@ -132,7 +128,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
                       itemCount: vm.lists.length,
                       itemBuilder: (ctx, i) {
                         final list = vm.lists[i];
-                        // Vi bruger den separate widget, som har input-feltet indbygget
                         return TodoListCard(
                           list: list, 
                           vm: vm,
@@ -148,7 +143,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
     );
   }
 
-  // --- DIALOG: OPRET LISTE ---
   void _showCreateListDialog(BuildContext context, AppViewModel vm) {
     final controller = TextEditingController();
     showDialog(
@@ -176,18 +170,15 @@ class _TodoListScreenState extends State<TodoListScreen> {
     );
   }
 
-  // --- DIALOG: NY OPGAVE (GLOBAL) ---
   void _showAddDialog(BuildContext context, AppViewModel vm) {
     final titleController = TextEditingController();
     final descController = TextEditingController();
-    // String selectedCategory = 'Generelt'; // Kategori skjult (KISS)
     DateTime? selectedDate;
     TaskPriority selectedPriority = TaskPriority.medium;
+    TaskRepeat selectedRepeat = TaskRepeat.never; // DEFAULT
     
-    // Find en liste at lægge opgaven i (aktiv eller første)
     String? targetListId = vm.activeListId ?? (vm.lists.isNotEmpty ? vm.lists.first.id : null);
 
-    // Sikkerhedstjek: Findes listen stadig?
     if (targetListId != null) {
       final listExists = vm.lists.any((list) => list.id == targetListId);
       if (!listExists && vm.lists.isNotEmpty) {
@@ -214,7 +205,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Vælg Liste Dropdown
                   DropdownButtonFormField<String>(
                     value: targetListId,
                     decoration: const InputDecoration(labelText: "Tilføj til liste"),
@@ -238,17 +228,30 @@ class _TodoListScreenState extends State<TodoListScreen> {
                   ),
                   const SizedBox(height: 15),
                   
-                  // Prioritet Vælger
                   PrioritySelector(
                     initialPriority: selectedPriority,
                     onChanged: (val) => setState(() => selectedPriority = val),
                   ),
                   const SizedBox(height: 15),
                   
-                  // Dato Vælger
-                  DateSelector(
-                    selectedDate: selectedDate,
-                    onDateChanged: (date) => setState(() => selectedDate = date),
+                  // NY: Gentagelse vælger
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: DateSelector(
+                          selectedDate: selectedDate,
+                          onDateChanged: (date) => setState(() => selectedDate = date),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: RepeatSelector(
+                          initialRepeat: selectedRepeat,
+                          onChanged: (val) => setState(() => selectedRepeat = val),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 15),
                   
@@ -267,10 +270,11 @@ class _TodoListScreenState extends State<TodoListScreen> {
                   vm.setActiveList(targetListId!);
                   vm.addTask(
                     titleController.text,
-                    category: "Generelt", // Default kategori (skjult i UI)
+                    category: "Generelt", 
                     description: descController.text,
                     dueDate: selectedDate, 
                     priority: selectedPriority,
+                    repeat: selectedRepeat, // Sender den valgte gentagelse med
                   );
                   Navigator.pop(context);
                 }
