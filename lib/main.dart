@@ -24,11 +24,13 @@ void main() async {
     print("Firebase Init Error: $e");
   }
 
-  // NYT: Initialiser Notification Service
+  // Initialiser Notification Service
   final notificationService = NotificationService();
   await notificationService.init();
-
-
+  
+  // BEMÆRK: requestPermissions() er fjernet herfra.
+  // Vi kalder det i stedet i UI'et (f.eks. MainScreen eller PomodoroScreen) 
+  // for en bedre brugeroplevelse.
 
   runApp(GenDoApp(notificationService: notificationService));
 }
@@ -66,8 +68,6 @@ class GenDoApp extends StatelessWidget {
   }
 }
 
-// ... Resten af filen (GenDoMaterialApp, AuthWrapper, MainScreen) er uændret, 
-// men sørg for at medtage hele filen nedenfor, da jeg skal returnere en komplet fil.
 class GenDoMaterialApp extends StatelessWidget {
   const GenDoMaterialApp({super.key});
 
@@ -154,10 +154,15 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_){
+    // Bed om tilladelse når brugeren lander på hovedskærmen (efter login)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Tjek om mounted for at undgå fejl hvis widgetten lukkes hurtigt
+      if (mounted) {
         context.read<NotificationService>().requestPermissions();
+      }
     });
   }
+
   void _switchTab(int index) {
     setState(() {
       _currentIndex = index;
