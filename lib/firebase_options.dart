@@ -40,15 +40,7 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBMxxTXyu6MeJ_NM7fM5AiYb_kivmgaSYc',
-    appId: '1:19090655500:web:4a143f68737c88852de129',
-    messagingSenderId: '19090655500',
-    projectId: 'gendo-a3592',
-    authDomain: 'gendo-a3592.firebaseapp.com',
-    storageBucket: 'gendo-a3592.firebasestorage.app',
-    measurementId: 'G-QTDM5K5Z56',
-  );
+  
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyA5aq5fRtGWyO0YjnVVjmIJ3uMq-Sn4Srk',
