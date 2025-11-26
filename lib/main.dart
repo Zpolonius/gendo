@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:gendo/firebase_options.dart';
 
 import 'repository.dart';
 import 'viewmodel.dart';
@@ -19,7 +20,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    await Firebase.initializeApp(); 
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    ); 
   } catch (e) {
     print("Firebase Init Error: $e");
   }
