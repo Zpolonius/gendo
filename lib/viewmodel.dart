@@ -167,7 +167,7 @@ class AppViewModel extends ChangeNotifier {
 
   // --- OPGAVER (OPDATERET MED NOTIFIKATIONER) ---
 
-  Future<String> addTask(String title, {String category = 'Generelt', String description = '', TaskPriority priority = TaskPriority.medium, DateTime? dueDate, String? listId}) async {
+  Future<String> addTask(String title, {String category = 'Generelt', String description = '', TaskPriority priority = TaskPriority.low, DateTime? dueDate, String? listId}) async {
     final targetListId = listId ?? _activeListId;
     if (targetListId == null) return '';
 
