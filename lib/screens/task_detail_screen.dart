@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:confetti/confetti.dart'; // HUSK AT KØRE: flutter pub add confetti
+import 'package:confetti/confetti.dart'; 
 import '../models.dart';
 import '../viewmodel.dart';
-import '../widgets/priority_selector.dart';
-// import '../widgets/date_selector.dart'; // Ikke nødvendig hvis vi bruger standard DatePicker
+
 
 class TaskDetailScreen extends StatefulWidget {
   final String taskId;
