@@ -6,7 +6,6 @@ import '../models.dart';
 import '../viewmodel.dart';
 import '../widgets/priority_selector.dart';
 import '../widgets/date_selector.dart';
-import '../widgets/repeat_selector.dart'; // NY IMPORT
 
 class TaskDetailScreen extends StatefulWidget {
   final String taskId;
@@ -20,126 +19,59 @@ class TaskDetailScreen extends StatefulWidget {
 }
 
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
-  
-  void _showEditDialog(BuildContext context, AppViewModel vm, TodoTask currentTask) {
-    final titleController = TextEditingController(text: currentTask.title);
-    final descController = TextEditingController(text: currentTask.description);
-    DateTime? selectedDate = currentTask.dueDate;
-    TaskPriority selectedPriority = currentTask.priority;
-    String selectedListId = currentTask.listId;
-    TaskRepeat selectedRepeat = currentTask.repeat; // Load eksisterende værdi
+  late TextEditingController _titleController;
+  late TextEditingController _notesController;
+  final FocusNode _titleFocus = FocusNode();
+  final FocusNode _notesFocus = FocusNode();
 
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text("Rediger Opgave"),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(labelText: "Titel"),
-                  ),
-                  const SizedBox(height: 15),
-                  
-                  DropdownButtonFormField<String>(
-                    value: selectedListId,
-                    decoration: const InputDecoration(labelText: "Liste"),
-                    items: vm.lists.map((list) => DropdownMenuItem(
-                      value: list.id,
-                      child: Text(list.title),
-                    )).toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => selectedListId = val);
-                    },
-                  ),
-                  
-                  const SizedBox(height: 15),
-                  PrioritySelector(
-                    initialPriority: selectedPriority,
-                    onChanged: (val) => setState(() => selectedPriority = val),
-                  ),
-                  const SizedBox(height: 15),
-                  
-                  // Dato og Gentagelse
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: DateSelector(
-                          selectedDate: selectedDate,
-                          onDateChanged: (date) => setState(() => selectedDate = date),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: RepeatSelector(
-                          initialRepeat: selectedRepeat,
-                          onChanged: (val) => setState(() => selectedRepeat = val),
-                        ),
-                      ),
-                    ],
-                  ),
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.initialTask.title);
+    _notesController = TextEditingController(text: widget.initialTask.description);
 
-                  const SizedBox(height: 15),
-                  TextField(
-                    controller: descController,
-                    decoration: const InputDecoration(labelText: "Noter/Beskrivelse"),
-                    maxLines: 3,
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
-              ElevatedButton(
-                onPressed: () {
-                  if (titleController.text.isNotEmpty) {
-                    final updatedTask = currentTask.copyWith(
-                      title: titleController.text,
-                      description: descController.text,
-                      dueDate: selectedDate,
-                      priority: selectedPriority,
-                      repeat: selectedRepeat, // Gemmer ny gentagelse
-                      listId: selectedListId,
-                    );
-                    vm.updateTaskDetails(updatedTask, oldListId: currentTask.listId);
-                    Navigator.pop(ctx);
-                  }
-                },
-                child: const Text("Gem"),
-              ),
-            ],
-          );
-        }
-      ),
-    );
+    _titleFocus.addListener(() {
+      if (!_titleFocus.hasFocus) {
+        _saveTitle();
+      }
+    });
+
+    _notesFocus.addListener(() {
+      if (!_notesFocus.hasFocus) {
+        _saveNotes();
+      }
+    });
   }
 
-  void _showDeleteDialog(BuildContext context, AppViewModel vm) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Slet Opgave?"),
-        content: const Text("Er du sikker på, at du vil slette denne opgave? Det kan ikke fortrydes."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
-          TextButton(
-            onPressed: () {
-              vm.deleteTask(widget.taskId);
-              Navigator.pop(ctx); 
-              Navigator.pop(context);
-            }, 
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Slet"),
-          ),
-        ],
-      ),
-    );
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _notesController.dispose();
+    _titleFocus.dispose();
+    _notesFocus.dispose();
+    super.dispose();
+  }
+
+  void _saveTitle() {
+    if (!mounted) return;
+    final vm = context.read<AppViewModel>();
+    final task = _getTask(vm);
+    if (task.title != _titleController.text && _titleController.text.isNotEmpty) {
+      vm.updateTaskDetails(task.copyWith(title: _titleController.text));
+    }
+  }
+
+  void _saveNotes() {
+    if (!mounted) return;
+    final vm = context.read<AppViewModel>();
+    final task = _getTask(vm);
+    if (task.description != _notesController.text) {
+      vm.updateTaskDetails(task.copyWith(description: _notesController.text));
+    }
+  }
+
+  TodoTask _getTask(AppViewModel vm) {
+    return vm.allTasks.firstWhere((t) => t.id == widget.taskId, orElse: () => widget.initialTask);
   }
 
   Color _getPriorityColor(TaskPriority p) {
@@ -147,6 +79,120 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       case TaskPriority.high: return Colors.redAccent;
       case TaskPriority.medium: return Colors.orangeAccent;
       case TaskPriority.low: return Colors.greenAccent;
+    }
+  }
+
+  // --- NY HJÆLPEFUNKTION: Tekst til TaskRepeat ---
+  String _getRepeatText(TaskRepeat repeat) {
+    switch (repeat) {
+      case TaskRepeat.never: return "Ingen gentagelse";
+      case TaskRepeat.daily: return "Hver dag";
+      case TaskRepeat.weekly: return "Hver uge";
+      case TaskRepeat.monthly: return "Hver måned";
+    }
+  }
+
+  void _changeList(BuildContext context, AppViewModel vm, TodoTask task) async {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Flyt til liste", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ...vm.lists.map((list) => ListTile(
+                leading: Icon(Icons.list, color: list.id == task.listId ? primaryColor : Colors.grey),
+                title: Text(list.title),
+                trailing: list.id == task.listId ? const Icon(Icons.check, color: Colors.green) : null,
+                onTap: () {
+                  if (list.id != task.listId) {
+                    vm.updateTaskDetails(task.copyWith(listId: list.id), oldListId: task.listId);
+                  }
+                  Navigator.pop(ctx);
+                },
+              )),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  void _changePriority(BuildContext context, AppViewModel vm, TodoTask task) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Vælg Prioritet", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ...TaskPriority.values.map((p) => ListTile(
+                leading: Icon(Icons.flag, color: _getPriorityColor(p)),
+                title: Text(p.name.toUpperCase()),
+                trailing: p == task.priority ? const Icon(Icons.check, color: Colors.green) : null,
+                onTap: () {
+                  vm.updateTaskDetails(task.copyWith(priority: p));
+                  Navigator.pop(ctx);
+                },
+              )),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  // --- NY FUNKTION: Ændre TaskRepeat ---
+  void _changeRepeat(BuildContext context, AppViewModel vm, TodoTask task) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Gentagelse", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ...TaskRepeat.values.map((r) => ListTile(
+                leading: Icon(
+                  Icons.repeat, 
+                  color: r == task.repeat ? Theme.of(context).colorScheme.primary : Colors.grey
+                ),
+                title: Text(_getRepeatText(r)),
+                trailing: r == task.repeat ? const Icon(Icons.check, color: Colors.green) : null,
+                onTap: () {
+                  // Opdaterer task med den nye 'repeat' værdi
+                  vm.updateTaskDetails(task.copyWith(repeat: r));
+                  Navigator.pop(ctx);
+                },
+              )),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  void _changeDate(BuildContext context, AppViewModel vm, TodoTask task) async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: task.dueDate ?? now,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 365 * 2)),
+    );
+
+    if (pickedDate != null) {
+      vm.updateTaskDetails(task.copyWith(dueDate: pickedDate));
     }
   }
 
@@ -158,8 +204,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     final dateFormatter = DateFormat('EEE, d MMM yyyy');
     final vm = context.watch<AppViewModel>();
     
-    // Find opgaven - hvis slettet, brug initialTask for at undgå crash før pop
-    final task = vm.allTasks.firstWhere((t) => t.id == widget.taskId, orElse: () => widget.initialTask);
+    final task = _getTask(vm);
+    
+    if (!_titleFocus.hasFocus && _titleController.text != task.title) {
+      _titleController.text = task.title;
+    }
+    if (!_notesFocus.hasFocus && _notesController.text != task.description) {
+      _notesController.text = task.description;
+    }
+
     String listName = "Ukendt liste";
     try {
       listName = vm.lists.firstWhere((l) => l.id == task.listId).title;
@@ -179,11 +232,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             ),
             onPressed: () => vm.toggleTask(task.id),
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined), 
-            onPressed: () => _showEditDialog(context, vm, task)
-          ), 
           const SizedBox(width: 8),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
@@ -225,12 +273,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       ),
                     ),
 
+                  // --- TITEL ---
                   Hero(
                     tag: 'task_${task.id}',
                     child: Material(
                       type: MaterialType.transparency,
-                      child: Text(
-                        task.title,
+                      child: TextFormField(
+                        controller: _titleController,
+                        focusNode: _titleFocus,
                         style: GoogleFonts.poppins(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -238,61 +288,125 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                           decoration: task.isCompleted ? TextDecoration.lineThrough : null,
                           decorationColor: Colors.grey,
                         ),
+                        decoration: const InputDecoration.collapsed(
+                          hintText: "Opgavetitel",
+                        ),
+                        maxLines: null,
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) {
+                          _titleFocus.unfocus();
+                        },
                       ),
                     ),
                   ),
                   const SizedBox(height: 10),
                   
-                  Row(
-                    children: [
-                      Icon(Icons.list, size: 18, color: Colors.grey[600]),
-                      const SizedBox(width: 8),
-                      Text(listName, style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500)),
-                    ],
+                  // --- LISTE ---
+                  InkWell(
+                    onTap: () => _changeList(context, vm, task),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.list, size: 18, color: Colors.grey[600]),
+                          const SizedBox(width: 8),
+                          Text(listName, style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500)),
+                          const SizedBox(width: 4),
+                          Icon(Icons.arrow_drop_down, size: 18, color: Colors.grey[600]), 
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 20),
                   
+                  // --- PRIORITET ---
                   Row(
                     children: [
-                      Chip(
-                        avatar: Icon(Icons.pending_actions_outlined, size: 16, color: _getPriorityColor(task.priority)),
-                        label: Text(task.priority.name.toUpperCase()),
-                        backgroundColor: _getPriorityColor(task.priority).withOpacity(0.1),
-                        labelStyle: TextStyle(color: _getPriorityColor(task.priority), fontWeight: FontWeight.bold),
-                        side: BorderSide.none,
-                      ),
-                      
-                      // VIS GENTAGELSE CHIP HVIS AKTIV
-                      if (task.repeat != TaskRepeat.never) ...[
-                        const SizedBox(width: 8),
-                        Chip(
-                          avatar: const Icon(Icons.repeat, size: 16, color: Colors.blue),
-                          label: Text(_getRepeatText(task.repeat)),
-                          backgroundColor: Colors.blue.withOpacity(0.1),
-                          labelStyle: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                      InkWell(
+                        onTap: () => _changePriority(context, vm, task),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Chip(
+                          avatar: Icon(Icons.pending_actions_outlined, size: 16, color: _getPriorityColor(task.priority)),
+                          label: Text(task.priority.name.toUpperCase()),
+                          backgroundColor: _getPriorityColor(task.priority).withOpacity(0.1),
+                          labelStyle: TextStyle(color: _getPriorityColor(task.priority), fontWeight: FontWeight.bold),
                           side: BorderSide.none,
+                          deleteIcon: const Icon(Icons.arrow_drop_down, size: 18), 
+                          onDeleted: () => _changePriority(context, vm, task), 
                         ),
-                      ]
+                      ),
                     ],
                   ),
                   const SizedBox(height: 30),
 
-                  if (task.dueDate != null) ...[
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_month_outlined, color: Colors.grey[500]),
-                        const SizedBox(width: 10),
-                        Text(
-                          "Deadline: ${dateFormatter.format(task.dueDate!)}",
-                          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                        ),
-                      ],
+                  // --- DEADLINE ---
+                  InkWell(
+                    onTap: () => _changeDate(context, vm, task),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_month_outlined, color: Colors.grey[500]),
+                          const SizedBox(width: 10),
+                          Text(
+                            task.dueDate != null 
+                              ? "Deadline: ${dateFormatter.format(task.dueDate!)}"
+                              : "Sæt deadline",
+                            style: TextStyle(
+                              fontSize: 16, 
+                              color: task.dueDate != null ? Colors.grey[600] : theme.colorScheme.primary
+                            ),
+                          ),
+                          if (task.dueDate == null) ...[
+                             const SizedBox(width: 4),
+                             Icon(Icons.add_circle_outline, size: 16, color: theme.colorScheme.primary),
+                          ]
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 30),
-                  ],
+                  ),
+                  
+                  // --- GENTAGELSE (REPEAT) - IMPLEMENTERET MED TaskRepeat ---
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: () => _changeRepeat(context, vm, task),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.repeat, 
+                            color: task.repeat != TaskRepeat.never ? theme.colorScheme.primary : Colors.grey[500]
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            task.repeat != TaskRepeat.never
+                              ? _getRepeatText(task.repeat)
+                              : "Tilføj gentagelse",
+                            style: TextStyle(
+                              fontSize: 16, 
+                              color: task.repeat != TaskRepeat.never ? theme.colorScheme.primary : Colors.grey[600]
+                            ),
+                          ),
+                           if (task.repeat == TaskRepeat.never) ...[
+                             const SizedBox(width: 4),
+                             Icon(Icons.add_circle_outline, size: 16, color: theme.colorScheme.primary),
+                          ]
+                        ],
+                      ),
+                    ),
+                  ),
 
+                  const SizedBox(height: 30),
+
+                  // --- NOTATER ---
                   Text("NOTATER", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
                   const SizedBox(height: 10),
+                  
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -301,9 +415,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200),
                     ),
-                    child: Text(
-                      task.description.isEmpty ? "Ingen noter tilføjet." : task.description,
+                    child: TextFormField(
+                      controller: _notesController,
+                      focusNode: _notesFocus,
                       style: TextStyle(fontSize: 16, height: 1.5, color: theme.colorScheme.onSurface.withOpacity(0.8)),
+                      decoration: const InputDecoration.collapsed(
+                        hintText: "Tryk her for at tilføje noter...",
+                      ),
+                      maxLines: null, 
+                      keyboardType: TextInputType.multiline,
                     ),
                   ),
                   
@@ -337,14 +457,5 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         ),
       ),
     );
-  }
-
-  String _getRepeatText(TaskRepeat r) {
-    switch(r) {
-      case TaskRepeat.daily: return "DAGLIGT";
-      case TaskRepeat.weekly: return "UGENTLIGT";
-      case TaskRepeat.monthly: return "MÅNEDLIGT";
-      default: return "";
-    }
   }
 }
