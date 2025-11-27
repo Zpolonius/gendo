@@ -6,7 +6,6 @@ import '../models.dart';
 import '../models/todo_list.dart';
 
 import '../viewmodel.dart';
-import '../widgets/category_selector.dart';
 import '../widgets/priority_selector.dart';
 import '../widgets/date_selector.dart';
 import '../widgets/todo_list_card.dart';
