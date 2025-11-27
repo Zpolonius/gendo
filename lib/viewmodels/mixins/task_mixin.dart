@@ -10,18 +10,50 @@ mixin TaskMixin on BaseViewModel {
   String? _activeListId;
   Map<String, List<TodoTask>> _tasksByList = {};
   List<String> _categories = [];
+  
+  // NYT: Et map der husker indstillingen for hver enkelt liste
+  // Key = Liste ID, Value = true (vis) / false (skjul)
+  final Map<String, bool> _listVisibilitySettings = {};
 
   // Getters
   List<TodoList> get lists => _lists;
   String? get activeListId => _activeListId;
   List<String> get categories => _categories;
   
-  // Returnerer alle opgaver på tværs af lister (nyttigt til Pomodoro)
+  // Returnerer alle opgaver på tværs af lister
   List<TodoTask> get allTasks => _tasksByList.values.expand((x) => x).toList();
   
-  // Returnerer opgaver for den aktive liste
-  List<TodoTask> get currentTasks => 
-      _activeListId != null ? (_tasksByList[_activeListId!] ?? []) : [];
+  // Returnerer opgaver for den aktive liste (filtreret)
+  List<TodoTask> get currentTasks => getFilteredTasks(_activeListId);
+
+  // --- FILTER LOGIK (OPDATERET) ---
+
+  // Tjekker om en specifik liste viser færdige opgaver (Standard: false/skjul)
+  bool showCompletedTasks(String listId) {
+    return _listVisibilitySettings[listId] ?? false;
+  }
+
+  // Henter filtrerede opgaver baseret på listens unikke indstilling
+  List<TodoTask> getFilteredTasks(String? listId) {
+    if (listId == null) return [];
+    
+    final tasks = _tasksByList[listId] ?? [];
+    
+    // Tjek indstillingen for netop denne liste
+    if (showCompletedTasks(listId)) {
+      return tasks; // Vis alt
+    }
+    
+    // Ellers skjul de færdige
+    return tasks.where((t) => !t.isCompleted).toList();
+  }
+
+  // Opdateret toggle der kræver et listId
+  void toggleShowCompletedTasks(String listId) {
+    final currentSetting = showCompletedTasks(listId);
+    _listVisibilitySettings[listId] = !currentSetting;
+    notifyListeners();
+  }
 
   // --- DATA LOADING ---
 
@@ -39,12 +71,10 @@ mixin TaskMixin on BaseViewModel {
       _lists = results[0] as List<TodoList>;
       _categories = results[1] as List<String>;
 
-      // Sæt standard aktiv liste hvis ingen er valgt
       if (_activeListId == null && _lists.isNotEmpty) {
         _activeListId = _lists.first.id;
       }
 
-      // Hent opgaver for hver liste
       for (var list in _lists) {
         final tasks = await repository.getTasks(list.id);
         _tasksByList[list.id] = tasks;
@@ -53,67 +83,7 @@ mixin TaskMixin on BaseViewModel {
       handleError(e);
     }
   }
-// --- SUBTASKS / STEPS LOGIK ---
 
-  Future<void> addTaskStep(String taskId, String title) async {
-    // 1. Find opgaven
-    final taskIndex = allTasks.indexWhere((t) => t.id == taskId);
-    if (taskIndex == -1) return;
-    
-    final task = allTasks[taskIndex];
-
-    // 2. Opret nyt step
-    final newStep = TaskStep(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: title,
-    );
-
-    // 3. Opdater opgaven med det nye step
-    // Vi laver en ny liste for at sikre immutability
-    final updatedSteps = List<TaskStep>.from(task.steps)..add(newStep);
-    final updatedTask = task.copyWith(steps: updatedSteps);
-
-    // 4. Gem ændringen via vores eksisterende update metode
-    await updateTaskDetails(updatedTask);
-  }
-
-  // Opdateret: Returnerer nu Future<bool> i stedet for Future<void>
-  Future<bool> toggleTaskStep(String taskId, String stepId) async {
-    final taskIndex = allTasks.indexWhere((t) => t.id == taskId);
-    // Hvis opgaven ikke findes, returner false
-    if (taskIndex == -1) return false;
-    
-    final task = allTasks[taskIndex];
-    
-    // 1. Find og opdater det specifikke step
-    final updatedSteps = task.steps.map((step) {
-      if (step.id == stepId) {
-        return step.copyWith(isCompleted: !step.isCompleted);
-      }
-      return step;
-    }).toList();
-
-    // 2. Gem ændringerne
-    final updatedTask = task.copyWith(steps: updatedSteps);
-    await updateTaskDetails(updatedTask);
-
-    // 3. Tjek om ALLE steps nu er færdige og returner resultatet
-    // Returnerer true hvis listen ikke er tom, og alle elementer er completed
-    return updatedSteps.isNotEmpty && updatedSteps.every((step) => step.isCompleted);
-  }
-
-  Future<void> deleteTaskStep(String taskId, String stepId) async {
-    final taskIndex = allTasks.indexWhere((t) => t.id == taskId);
-    if (taskIndex == -1) return;
-    
-    final task = allTasks[taskIndex];
-
-    // Fjern steppet fra listen
-    final updatedSteps = task.steps.where((step) => step.id != stepId).toList();
-    
-    final updatedTask = task.copyWith(steps: updatedSteps);
-    await updateTaskDetails(updatedTask);
-  }
   // --- LISTER ---
 
   void setActiveList(String listId) {
@@ -143,6 +113,7 @@ mixin TaskMixin on BaseViewModel {
     await repository.deleteList(listId);
     _lists.removeWhere((l) => l.id == listId);
     _tasksByList.remove(listId);
+    _listVisibilitySettings.remove(listId); // Ryd op i indstillinger
     
     if (_activeListId == listId) {
       _activeListId = _lists.isNotEmpty ? _lists.first.id : null;
@@ -165,20 +136,17 @@ mixin TaskMixin on BaseViewModel {
 
   Future<void> removeMember(String listId, String userId) async {
     await repository.removeUserFromList(listId, userId);
-    // Vi reloader ikke alt her, men man burde optimalt set opdatere den enkelte liste
-    // For nuværende er dette fint for at matche eksisterende funktionalitet.
   }
 
   // --- OPGAVER ---
 
- Future<String> addTask(
-    String title, {
-    String category = 'Generelt',
-    String description = '',
-    TaskPriority priority = TaskPriority.medium,
-    DateTime? dueDate,
+  Future<String> addTask(String title, {
+    String category = 'Generelt', 
+    String description = '', 
+    TaskPriority priority = TaskPriority.medium, 
+    DateTime? dueDate, 
     String? listId,
-    TaskRepeat repeat = TaskRepeat.never, // <--- Tilføj denne parameter
+    TaskRepeat repeat = TaskRepeat.never,
   }) async {
     final targetListId = listId ?? _activeListId;
     if (targetListId == null) return '';
@@ -194,41 +162,44 @@ mixin TaskMixin on BaseViewModel {
       priority: priority,
       dueDate: dueDate,
       createdAt: DateTime.now(),
-      listId: targetListId,
-      repeat: repeat, // <--- Brug den her
+      listId: targetListId, 
+      repeat: repeat,
     );
 
     await repository.addTask(newTask);
     if (_tasksByList[targetListId] == null) _tasksByList[targetListId] = [];
     _tasksByList[targetListId]!.add(newTask);
-    notifyListeners();
     
+    if (dueDate != null) {
+      await notificationService.scheduleTaskNotification(
+        id: newTask.id.hashCode,
+        title: "Deadline: $title",
+        body: "Din opgave skal være færdig nu!",
+        scheduledDate: dueDate,
+      );
+    }
+
+    notifyListeners();
     return newId;
   }
+
   Future<void> toggleTask(String taskId) async {
     for (var listId in _tasksByList.keys) {
       final index = _tasksByList[listId]!.indexWhere((t) => t.id == taskId);
       if (index != -1) {
         var task = _tasksByList[listId]![index];
         final updatedTask = task.copyWith(isCompleted: !task.isCompleted);
-        
-        await repository.updateTask(updatedTask);
-        _tasksByList[listId]![index] = updatedTask;
-        notifyListeners();
+        await updateTaskDetails(updatedTask);
         return;
       }
     }
   }
 
   Future<void> updateTaskDetails(TodoTask task, {String? oldListId}) async {
-    // Hvis oldListId er angivet og forskellig fra den nye, så er det en flytning
     if (oldListId != null && oldListId != task.listId) {
-      // 1. Slet fra gammel liste DB
       await repository.deleteTask(oldListId, task.id);
-      // 2. Opret i ny liste DB
       await repository.addTask(task);
       
-      // 3. Opdater lokalt state
       if (_tasksByList.containsKey(oldListId)) {
         _tasksByList[oldListId]!.removeWhere((t) => t.id == task.id);
       }
@@ -236,7 +207,6 @@ mixin TaskMixin on BaseViewModel {
       _tasksByList[task.listId]!.add(task);
 
     } else {
-      // Almindelig opdatering
       await repository.updateTask(task);
       final list = _tasksByList[task.listId];
       if (list != null) {
@@ -246,12 +216,25 @@ mixin TaskMixin on BaseViewModel {
         }
       }
     }
+
+    if (task.isCompleted) {
+      await notificationService.cancelNotification(task.id.hashCode);
+    } else if (task.dueDate != null) {
+      await notificationService.scheduleTaskNotification(
+        id: task.id.hashCode,
+        title: "Deadline: ${task.title}",
+        body: "Din opgave skal være færdig nu!",
+        scheduledDate: task.dueDate!,
+      );
+    } else {
+      await notificationService.cancelNotification(task.id.hashCode);
+    }
+
     notifyListeners();
   }
 
   Future<void> deleteTask(String taskId) async {
     String? listIdFound;
-    // Find hvilken liste opgaven tilhører
     for (var entry in _tasksByList.entries) {
       if (entry.value.any((t) => t.id == taskId)) {
         listIdFound = entry.key;
@@ -262,8 +245,54 @@ mixin TaskMixin on BaseViewModel {
     if (listIdFound != null) {
       await repository.deleteTask(listIdFound, taskId);
       _tasksByList[listIdFound]!.removeWhere((t) => t.id == taskId);
+      await notificationService.cancelNotification(taskId.hashCode);
       notifyListeners();
     }
+  }
+
+  // --- SUBTASKS / STEPS ---
+
+  Future<bool> toggleTaskStep(String taskId, String stepId) async {
+    final taskIndex = allTasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex == -1) return false;
+    
+    final task = allTasks[taskIndex];
+    
+    final updatedSteps = task.steps.map((step) {
+      if (step.id == stepId) {
+        return step.copyWith(isCompleted: !step.isCompleted);
+      }
+      return step;
+    }).toList();
+
+    final updatedTask = task.copyWith(steps: updatedSteps);
+    await updateTaskDetails(updatedTask);
+
+    return updatedSteps.isNotEmpty && updatedSteps.every((step) => step.isCompleted);
+  }
+
+  Future<void> addTaskStep(String taskId, String title) async {
+    final taskIndex = allTasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex == -1) return;
+    
+    final task = allTasks[taskIndex];
+    final newStep = TaskStep(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: title,
+    );
+    final updatedSteps = List<TaskStep>.from(task.steps)..add(newStep);
+    final updatedTask = task.copyWith(steps: updatedSteps);
+    await updateTaskDetails(updatedTask);
+  }
+
+  Future<void> deleteTaskStep(String taskId, String stepId) async {
+    final taskIndex = allTasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex == -1) return;
+    
+    final task = allTasks[taskIndex];
+    final updatedSteps = task.steps.where((step) => step.id != stepId).toList();
+    final updatedTask = task.copyWith(steps: updatedSteps);
+    await updateTaskDetails(updatedTask);
   }
 
   // --- KATEGORIER & AI ---
@@ -279,7 +308,6 @@ mixin TaskMixin on BaseViewModel {
 
   Future<void> generatePlanFromAI(String prompt) async { 
     setLoading(true);
-    // Simuleret AI kald
     await Future.delayed(const Duration(seconds: 2)); 
     List<String> suggestions = ["Research: $prompt", "Planlægning: $prompt", "Udførsel: $prompt"]; 
     for (var taskTitle in suggestions) { 

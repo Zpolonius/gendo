@@ -41,27 +41,58 @@ class FirestoreService implements TaskRepository {
   // --- SLET AL BRUGERDATA (DATA CLEANUP) ---
   // Denne metode kaldes før Auth-sletning for at undgå "orphaned data"
   Future<void> deleteUserData() async {
-    // 1. Find alle lister hvor brugeren er medlem
-    final snapshot = await _listsCollection.where('memberIds', arrayContains: _userId).get();
-    
-    for (var doc in snapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final ownerId = data['ownerId'];
+    try {
+      // 1. Hent alle lister brugeren er relateret til
+      final lists = await getLists();
       
-      if (ownerId == _userId) {
-        // A. Hvis brugeren ejer listen -> SLET LISTEN
-        // (Ideelt set burde vi slette subcollection 'tasks' først, men for nu sletter vi listen)
-        await _listsCollection.doc(doc.id).delete();
-      } else {
-        // B. Hvis brugeren bare er medlem -> FJERN FRA MEMBERIDS
-        await _listsCollection.doc(doc.id).update({
-          'memberIds': FieldValue.arrayRemove([_userId])
-        });
+      for (var list in lists) {
+        if (list.ownerId == _userId) {
+          // Hvis brugeren ejer listen -> Slet hele listen og dens opgaver
+          await deleteList(list.id);
+        } else {
+          // Hvis brugeren kun er medlem -> Fjern dem fra listen
+          await removeUserFromList(list.id, _userId);
+        }
+      }
+
+      // 2. Slet brugerens profil-dokument
+      await _userDoc.delete();
+      
+    } catch (e) {
+      // Log fejl, men lad os prøve at fortsætte eller kaste videre
+      print("Fejl under sletning af brugerdata: $e");
+      rethrow;
+    }
+  }
+
+  // --- OPDATERET: SLET LISTE + TASKS ---
+  // Firestore sletter IKKE subcollections (tasks) automatisk. Det skal vi gøre manuelt.
+  @override 
+  Future<void> deleteList(String listId) async {
+    final docRef = _listsCollection.doc(listId);
+    final doc = await docRef.get();
+    
+    if (doc.exists) {
+      final data = doc.data() as Map<String, dynamic>;
+      
+      // Sikkerhedstjek: Kun ejeren må slette
+      if (data['ownerId'] == _userId) {
+        
+        // 1. Slet alle tasks i sub-collection først (Batch write for performance)
+        final tasksSnapshot = await docRef.collection('tasks').get();
+        final batch = _db.batch();
+        
+        for (var taskDoc in tasksSnapshot.docs) {
+          batch.delete(taskDoc.reference);
+        }
+        
+        // Udfør task-sletning
+        await batch.commit();
+
+        // 2. Slet selve listen
+        await docRef.delete();
       }
     }
-
-    // 2. Slet selve bruger-dokumentet
-    await _userDoc.delete();
   }
 
   // --- MEDLEMS DETALJER ---
@@ -120,13 +151,7 @@ class FirestoreService implements TaskRepository {
     await _listsCollection.doc(list.id).update(list.toMap());
   }
 
-  @override Future<void> deleteList(String listId) async {
-    final doc = await _listsCollection.doc(listId).get();
-    if (doc.exists) {
-      final data = doc.data() as Map<String, dynamic>;
-      if (data['ownerId'] == _userId) await _listsCollection.doc(listId).delete();
-    }
-  }
+  
   @override Future<void> inviteUserByEmail(String listId, String email) async {
     final userSnapshot = await _db.collection('users').where('email', isEqualTo: email).limit(1).get();
     if (userSnapshot.docs.isNotEmpty) {

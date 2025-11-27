@@ -140,9 +140,12 @@ class _TodoListCardState extends State<TodoListCard> {
     final isOwner = currentUser?.uid == widget.list.ownerId;
     
     // Hent opgaver og sorter dem
-    final rawTasks = widget.vm.allTasks.where((t) => t.listId == widget.list.id).toList();
-    final sortedTasks = _getSortedTasks(rawTasks);
+  
+    final showCompletedTasks = widget.vm.showCompletedTasks(widget.list.id);
     
+    final rawTasks = widget.vm.getFilteredTasks(widget.list.id);
+    final sortedTasks = _getSortedTasks(rawTasks);
+
     final isDark = theme.brightness == Brightness.dark;
 
     return Card(
@@ -239,14 +242,29 @@ class _TodoListCardState extends State<TodoListCard> {
                 ],
               ),
               
-              // Eksisterende Menu (Medlemmer / Slet)
+              // Eksisterende Menu (Medlemmer / Slet /filtre)
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert, color: Colors.grey),
                 onSelected: (value) {
+                  if (value == 'toggle_completed') widget.vm.toggleShowCompletedTasks(widget.list.id);
                   if (value == 'members') _showMembersDialog(context);
                   if (value == 'delete') _showDeleteListDialog(context);
                 },
                 itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'toggle_completed',
+                      child: Row(
+                        children: [
+                          Icon(
+                            showCompletedTasks ? Icons.visibility_off_outlined : Icons.visibility_outlined, 
+                            size: 20,
+                            color: Colors.grey
+                          ),
+                          const SizedBox(width: 8),
+                          Text(showCompletedTasks ? "Skjul færdige" : "Vis færdige"),
+                      ],
+                    ),
+                  ),
                   const PopupMenuItem(
                     value: 'members',
                     child: Row(
@@ -272,6 +290,7 @@ class _TodoListCardState extends State<TodoListCard> {
               ),
             ],
           ),
+
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
