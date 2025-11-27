@@ -6,18 +6,21 @@ mixin BaseViewModelMixin on ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  /// Kører en handling sikkert med loading-state og fejlhåndtering.
-  Future<void> runSafe(Future<void> Function() action, {required bool handleLoading}) async {
-    _isLoading = true;
-    notifyListeners();
+  Future<void> runSafe(Future<void> Function() action, {bool handleLoading = true}) async {
+    if (handleLoading) {
+      _isLoading = true;
+      notifyListeners();
+    }
 
     try {
       await action();
     } catch (e, stack) {
       ErrorService.show(e, stackTrace: stack);
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (handleLoading) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 }
