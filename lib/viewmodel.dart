@@ -272,7 +272,54 @@ class AppViewModel extends ChangeNotifier with RecurringTaskHandler {
       }
     }
   }
+  // ... inde i AppViewModel ...
 
+  // Tilføj et nyt step til en opgave
+  Future<void> addTaskStep(String taskId, String stepTitle) async {
+    final task = allTasks.firstWhere((t) => t.id == taskId);
+    final newStep = TaskStep(
+      id: DateTime.now().millisecondsSinceEpoch.toString(), // Simpel ID generering
+      title: stepTitle,
+    );
+    
+    // Opret en ny liste af steps (husk immutability)
+    final updatedSteps = List<TaskStep>.from(task.steps)..add(newStep);
+    
+    final updatedTask = task.copyWith(steps: updatedSteps);
+    await updateTaskDetails(updatedTask);
+  }
+
+  // Toggle status på et step
+  // Returnerer true hvis ALLE steps nu er færdige (til confetti trigger)
+  Future<bool> toggleTaskStep(String taskId, String stepId) async {
+    final task = allTasks.firstWhere((t) => t.id == taskId);
+    
+    final updatedSteps = task.steps.map((step) {
+      if (step.id == stepId) {
+        return TaskStep(
+          id: step.id, 
+          title: step.title, 
+          isCompleted: !step.isCompleted
+        );
+      }
+      return step;
+    }).toList();
+
+    final updatedTask = task.copyWith(steps: updatedSteps);
+    await updateTaskDetails(updatedTask);
+
+    // Tjek om alle steps er færdige
+    return updatedSteps.isNotEmpty && updatedSteps.every((s) => s.isCompleted);
+  }
+
+  // Slet et step
+  Future<void> deleteTaskStep(String taskId, String stepId) async {
+    final task = allTasks.firstWhere((t) => t.id == taskId);
+    final updatedSteps = task.steps.where((s) => s.id != stepId).toList();
+    
+    final updatedTask = task.copyWith(steps: updatedSteps);
+    await updateTaskDetails(updatedTask);
+  }
   // Bemærk: _handleRecurringTaskCompletion er fjernet herfra, da den nu ligger i Mixin'en.
 
   Future<void> updateTaskDetails(TodoTask task, {String? oldListId}) async {

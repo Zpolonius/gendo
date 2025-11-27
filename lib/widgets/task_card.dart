@@ -24,6 +24,49 @@ class TaskCard extends StatelessWidget {
     }
   }
 
+  // NY HJÆLPEMETODE: Håndterer visning af dato og steps i subtitle
+  Widget? _buildSubtitle(TodoTask task, DateFormat dateFormatter) {
+    final hasDate = task.dueDate != null;
+    // Vi tjekker om listen af steps eksisterer og ikke er tom
+    final hasSteps = task.steps.isNotEmpty;
+
+    // Hvis hverken dato eller steps findes, returner null (ingen subtitle)
+    if (!hasDate && !hasSteps) return null;
+
+    // Udregn antal færdige steps
+    final completedSteps = task.steps.where((s) => s.isCompleted).length;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4.0),
+      child: Row(
+        children: [
+          // 1. Vis Dato hvis den findes
+          if (hasDate) ...[
+            Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
+            const SizedBox(width: 4),
+            Text(
+              dateFormatter.format(task.dueDate!),
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            ),
+          ],
+
+          // 2. Vis mellemrum hvis vi har BÅDE dato og steps
+          if (hasDate && hasSteps) const SizedBox(width: 12),
+
+          // 3. Vis Steps indikator hvis steps findes
+          if (hasSteps) ...[
+            Icon(Icons.checklist_rtl_rounded, size: 14, color: Colors.grey[500]),
+            const SizedBox(width: 4),
+            Text(
+              "$completedSteps/${task.steps.length}",
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -67,21 +110,8 @@ class TaskCard extends StatelessWidget {
             )
           ),
           
-          subtitle: (task.dueDate != null) 
-            ? Padding(
-                padding: const EdgeInsets.only(top: 4.0),
-                child: Row(
-                  children: [
-                    Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
-                    const SizedBox(width: 4),
-                    Text(
-                      dateFormatter.format(task.dueDate!),
-                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                    ),
-                  ],
-                ),
-              )
-            : null, // Hvis ingen dato, vis ingen subtitle
+          // HER ER ÆNDRINGEN: Vi bruger nu vores hjælpemetode
+          subtitle: _buildSubtitle(task, dateFormatter),
           
           // TRAILING: TJEKBOKS
           trailing: IconButton(
