@@ -12,6 +12,8 @@ import 'services/firestore_service.dart';
 import 'services/notification_service.dart'; 
 import 'screens/login_screen.dart';
 import 'widgets/app_drawer.dart'; 
+import 'services/error_service.dart';
+import 'viewmodels/error_view_model.dart';
 
 import 'screens/pomodoro_screen.dart';
 import 'screens/todo_list_screen.dart';
@@ -24,7 +26,7 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     ); 
   } catch (e) {
-    print("Firebase Init Error: $e");
+ 
   }
 
   // Initialiser Notification Service
@@ -54,6 +56,9 @@ class GenDoApp extends StatelessWidget {
           create: (context) => context.read<AuthService>().user,
           initialData: null,
         ),
+        ChangeNotifierProvider(
+          create: (_) => ErrorViewModel(),
+        ),
         ChangeNotifierProxyProvider<User?, AppViewModel>(
           create: (_) => AppViewModel(MockTaskRepository(), notificationService), // Inject her
           update: (_, user, viewModel) {
@@ -82,6 +87,7 @@ class GenDoMaterialApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'GenDo',
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
