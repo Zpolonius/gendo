@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
-import '../models.dart';
-import '../models/todo_list.dart';
+
 
 import '../viewmodel.dart';
 import '../widgets/priority_selector.dart';
 import '../widgets/date_selector.dart';
 import '../widgets/todo_list_card.dart';
-import '../widgets/repeat_selector.dart'; // NY IMPORT
+import '../widgets/repeat_selector.dart'; 
 
 class TodoListScreen extends StatefulWidget {
   final Function(int) onSwitchTab; 
