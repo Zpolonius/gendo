@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 
+
 import '../viewmodel.dart';
 import '../widgets/priority_selector.dart';
 import '../widgets/date_selector.dart';
 import '../widgets/todo_list_card.dart';
 import '../widgets/repeat_selector.dart'; 
+import '../widgets/skeleton_loader.dart';
 
 class TodoListScreen extends StatefulWidget {
   final Function(int) onSwitchTab; 
@@ -83,7 +85,54 @@ class _TodoListScreenState extends State<TodoListScreen> {
         },
         behavior: HitTestBehavior.translucent,
         child: Column(
+          
           children: [
+           Expanded(child: Builder(
+                builder: (context) {
+                  // 1. Hvis vi loader, vis Skeleton
+                  if (vm.isLoading) {
+                    return const SkeletonListLoader();
+                  }
+                  
+                  // 2. Hvis vi er færdige og listen er tom, vis Empty State
+                  if (vm.lists.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.list_alt_rounded, size: 64, color: Colors.grey[300]),
+                          const SizedBox(height: 16),
+                          Text("Ingen lister endnu", style: TextStyle(color: Colors.grey[500])),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () => _showCreateListDialog(context, vm),
+                            child: const Text("Opret din første liste"),
+                          )
+                        ],
+                      ),
+                    );
+                  }
+
+                  // 3. Ellers vis den rigtige liste
+                  return RefreshIndicator(
+                    onRefresh: () => vm.loadData(),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 100),
+                      itemCount: vm.lists.length,
+                      itemBuilder: (ctx, i) {
+                        final list = vm.lists[i];
+                        return TodoListCard(
+                          list: list, 
+                          vm: vm,
+                          onSwitchTab: widget.onSwitchTab
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
               child: Align(
