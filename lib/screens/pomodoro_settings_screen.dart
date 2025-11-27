@@ -99,7 +99,7 @@ class _PomodoroSettingsScreenState extends State<PomodoroSettingsScreen> {
                     title: const Text("Tillad Pauser"),
                     subtitle: const Text("Automatisk pause efter hver session"),
                     value: _enableBreaks,
-                    activeColor: theme.colorScheme.primary,
+                    activeThumbColor: theme.colorScheme.primary,
                     onChanged: (val) => setState(() {
                       _enableBreaks = val;
                       if (!val) _enableLongBreaks = false; 
@@ -111,7 +111,7 @@ class _PomodoroSettingsScreenState extends State<PomodoroSettingsScreen> {
                     title: const Text("Lange Pauser"),
                     subtitle: const Text("En længere pause efter 3 sessioner"),
                     value: _enableLongBreaks,
-                    activeColor: theme.colorScheme.primary,
+                    activeThumbColor: theme.colorScheme.primary,
                     // Kun aktiv hvis pauser generelt er slået til
                     onChanged: _enableBreaks ? (val) => setState(() => _enableLongBreaks = val) : null, 
                   ),

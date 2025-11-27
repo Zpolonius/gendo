@@ -5,8 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:confetti/confetti.dart'; // HUSK AT KØRE: flutter pub add confetti
 import '../models.dart';
 import '../viewmodel.dart';
-import '../widgets/priority_selector.dart';
-import '../widgets/date_selector.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final String taskId;

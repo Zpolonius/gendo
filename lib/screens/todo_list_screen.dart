@@ -206,7 +206,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   DropdownButtonFormField<String>(
-                    value: targetListId,
+                    initialValue: targetListId,
                     decoration: const InputDecoration(labelText: "Tilføj til liste"),
                     items: vm.lists.map((list) => DropdownMenuItem(
                       value: list.id,

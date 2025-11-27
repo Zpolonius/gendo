@@ -283,7 +283,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                           ),
                         ),
                       );
-                    }).toList(),
+                    }),
                   ],
                   onChanged: (id) => vm.setSelectedTask(id),
                 ),

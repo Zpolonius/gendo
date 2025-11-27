@@ -79,7 +79,7 @@ class AppDrawer extends StatelessWidget {
                   title: const Text("Dark Mode"),
                   secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode, color: theme.colorScheme.onSurface),
                   value: isDark,
-                  activeColor: theme.colorScheme.primary,
+                  activeThumbColor: theme.colorScheme.primary,
                   onChanged: (bool value) {
                     vm.toggleTheme(value);
                   },
