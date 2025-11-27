@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:confetti/confetti.dart'; // NYT: Til konfetti animation
+import 'package:confetti/confetti.dart'; // HUSK AT KØRE: flutter pub add confetti
 import '../models.dart';
 import '../viewmodel.dart';
 import '../widgets/priority_selector.dart';
@@ -23,7 +23,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   late TextEditingController _titleController;
   late TextEditingController _notesController;
   
-  // NYT: Controllere til steps og konfetti
+  // Controllere til steps og konfetti
   final TextEditingController _stepController = TextEditingController();
   late ConfettiController _confettiController;
 
@@ -36,8 +36,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     _titleController = TextEditingController(text: widget.initialTask.title);
     _notesController = TextEditingController(text: widget.initialTask.description);
     
-    // NYT: Initialiser konfetti (1 sekunds varighed)
-    _confettiController = ConfettiController(duration: const Duration(seconds: 1));
+    // Initialiser konfetti (spiller i 2 sekunder)
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
 
     _titleFocus.addListener(() {
       if (!_titleFocus.hasFocus) {
@@ -56,8 +56,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   void dispose() {
     _titleController.dispose();
     _notesController.dispose();
-    _stepController.dispose(); // NYT: Husk at rydde op
-    _confettiController.dispose(); // NYT: Husk at rydde op
+    _stepController.dispose();
+    _confettiController.dispose();
     _titleFocus.dispose();
     _notesFocus.dispose();
     super.dispose();
@@ -93,7 +93,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
-  // Hjælpefunktion: Tekst til TaskRepeat
   String _getRepeatText(TaskRepeat repeat) {
     switch (repeat) {
       case TaskRepeat.never: return "Ingen gentagelse";
@@ -161,7 +160,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
-  // Funktion: Ændre TaskRepeat
   void _changeRepeat(BuildContext context, AppViewModel vm, TodoTask task) {
     showModalBottomSheet(
       context: context,
@@ -206,11 +204,20 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
+  // --- NYT: Logik til at håndtere afslutning af hele opgaven ---
+  void _toggleTaskCompletion(AppViewModel vm, TodoTask task) {
+    vm.toggleTask(task.id);
+    
+    // Hvis opgaven IKKE var færdig før (altså bliver færdig nu), så spil konfetti
+    if (!task.isCompleted) {
+      _confettiController.play();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
     final dateFormatter = DateFormat('EEE, d MMM yyyy');
     final vm = context.watch<AppViewModel>();
     
@@ -228,7 +235,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       listName = vm.lists.firstWhere((l) => l.id == task.listId).title;
     } catch (e) { }
 
-    return Stack( // Wrap Scaffold i Stack for at kunne vise Confetti øverst
+    return Stack(
       children: [
         Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
@@ -242,7 +249,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   color: task.isCompleted ? Colors.green : Colors.grey,
                   size: 28,
                 ),
-                onPressed: () => vm.toggleTask(task.id),
+                // Her kalder vi vores nye metode i stedet for direkte vm.toggleTask
+                onPressed: () => _toggleTaskCompletion(vm, task), 
               ),
               const SizedBox(width: 8),
               Padding(
@@ -285,7 +293,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                           ),
                         ),
 
-                      // --- TITEL ---
+                      // TITEL
                       Hero(
                         tag: 'task_${task.id}',
                         child: Material(
@@ -313,7 +321,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       ),
                       const SizedBox(height: 10),
                       
-                      // --- LISTE ---
+                      // LISTE
                       InkWell(
                         onTap: () => _changeList(context, vm, task),
                         borderRadius: BorderRadius.circular(8),
@@ -333,7 +341,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       ),
                       const SizedBox(height: 20),
                       
-                      // --- PRIORITET ---
+                      // PRIORITET
                       Row(
                         children: [
                           InkWell(
@@ -353,7 +361,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       ),
                       const SizedBox(height: 30),
 
-                      // --- DEADLINE ---
+                      // DEADLINE
                       InkWell(
                         onTap: () => _changeDate(context, vm, task),
                         borderRadius: BorderRadius.circular(8),
@@ -381,7 +389,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                         ),
                       ),
                       
-                      // --- GENTAGELSE (REPEAT) ---
+                      // GENTAGELSE
                       const SizedBox(height: 16),
                       InkWell(
                         onTap: () => _changeRepeat(context, vm, task),
@@ -415,13 +423,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
                       const SizedBox(height: 30),
 
-                      // --- NYT: TRIN / UNDEROPGAVER ---
-                      // Header
+                      // --- TRIN / UNDEROPGAVER ---
                       Text("TRIN (${task.steps.where((s) => s.isCompleted).length}/${task.steps.length})", 
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
                       const SizedBox(height: 10),
                       
-                      // Input felt til nyt step
+                      // Input felt
                       Row(
                         children: [
                           Expanded(
@@ -498,7 +505,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
                       const SizedBox(height: 30),
 
-                      // --- NOTATER ---
+                      // NOTATER
                       Text("NOTATER", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
                       const SizedBox(height: 10),
                       
@@ -553,37 +560,17 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           ),
         ),
 
-        // NYT: KONFETTI WIDGET ØVERST
+        // KONFETTI WIDGET
         Align(
           alignment: Alignment.topCenter,
           child: ConfettiWidget(
             confettiController: _confettiController,
-            blastDirectionality: BlastDirectionality.explosive, // Konfetti i alle retninger
+            blastDirectionality: BlastDirectionality.explosive,
             shouldLoop: false, 
             colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple], 
-            createParticlePath: drawStar, // Bruger hjælpefunktion nedenfor
           ),
         ),
       ],
     );
-  }
-
-  // NYT: Hjælpefunktion til at tegne stjerner (krævet af ConfettiWidget hvis man vil have stjerner)
-  Path drawStar(Size size) {
-    double degToRad(double deg) => deg * (3.1415926535897932 / 180.0);
-    const numberOfPoints = 5;
-    final halfWidth = size.width / 2;
-    final externalRadius = halfWidth;
-    final internalRadius = halfWidth / 2.5;
-    final degreesPerStep = degToRad(360 / numberOfPoints);
-    final halfDegreesPerStep = degreesPerStep / 2;
-    final path = Path();
-    final fullAngle = degToRad(360);
-    path.moveTo(size.width, halfWidth);
-    for (double step = 0; step < fullAngle; step += degreesPerStep) {
-      path.lineTo(halfWidth + externalRadius * 0.8 * 1 * (1), halfWidth + externalRadius * 0.8 * 0); // Forenklet
-    }
-    path.close();
-    return path;
   }
 }
