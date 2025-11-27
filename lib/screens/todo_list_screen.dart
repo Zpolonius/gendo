@@ -133,57 +133,10 @@ class _TodoListScreenState extends State<TodoListScreen> {
               ),
             ),
 
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "MINE LISTER", 
-                  style: TextStyle(
-                    fontSize: 12, 
-                    fontWeight: FontWeight.bold, 
-                    color: Colors.grey[600], 
-                    letterSpacing: 1.2
-                  )
-                ),
-              ),
-            ),
+           
 
-            Expanded(
-              child: vm.lists.isEmpty 
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.list_alt_rounded, size: 64, color: Colors.grey[300]),
-                        const SizedBox(height: 16),
-                        Text("Ingen lister endnu", style: TextStyle(color: Colors.grey[500])),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () => _showCreateListDialog(context, vm),
-                          child: const Text("Opret din første liste"),
-                        )
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: () => vm.loadData(),
-                    child: ListView.builder(
-                      padding: const EdgeInsets.only(bottom: 100),
-                      itemCount: vm.lists.length,
-                      itemBuilder: (ctx, i) {
-                        final list = vm.lists[i];
-                        return TodoListCard(
-                          list: list, 
-                          vm: vm,
-                          onSwitchTab: widget.onSwitchTab
-                        );
-                      },
-                    ),
-                  ),
-            ),
-          ],
-        ),
+           
+        ]),
       ),
     );
   }
