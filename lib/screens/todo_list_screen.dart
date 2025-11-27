@@ -71,7 +71,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
             },
             backgroundColor: _isFabExpanded ? Colors.grey : theme.colorScheme.primary,
             child: Icon(
-              _isFabExpanded ? Icons.close : Icons.add, 
+              _isFabExpanded ? Icons.close : Icons.menu, 
               color: Colors.white,
               size: 28,
             ),

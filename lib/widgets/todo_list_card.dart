@@ -7,6 +7,13 @@ import '../screens/task_detail_screen.dart';
 import 'task_card.dart';
 import 'member_management_dialog.dart';
 
+// Enum til at definere sorteringsmulighederne
+enum ListSortOption {
+  priority,
+  date,
+  alphabetical,
+}
+
 class TodoListCard extends StatefulWidget {
   final TodoList list;
   final AppViewModel vm;
@@ -25,6 +32,9 @@ class TodoListCard extends StatefulWidget {
 
 class _TodoListCardState extends State<TodoListCard> {
   final TextEditingController _quickAddController = TextEditingController();
+  
+  // Standard sortering: Prioritet
+  ListSortOption _currentSort = ListSortOption.priority;
 
   @override
   void dispose() {
@@ -85,36 +95,55 @@ class _TodoListCardState extends State<TodoListCard> {
       ),
     );
   }
+
+  // --- SORTERINGS LOGIK ---
+  List<TodoTask> _getSortedTasks(List<TodoTask> tasks) {
+    // Vi laver en kopi af listen for ikke at sortere den originale liste i memory direkte (good practice)
+    List<TodoTask> sortedTasks = List.from(tasks);
+
+    switch (_currentSort) {
+      case ListSortOption.priority:
+        sortedTasks.sort((a, b) {
+          // TaskPriority enum er: low, medium, high. 
+          // Vi vil have High (index 2) først, så vi sorterer b mod a.
+          int priorityComp = b.priority.index.compareTo(a.priority.index);
+          if (priorityComp != 0) return priorityComp;
+          // Hvis samme prioritet, brug oprettelsesdato (nyeste først)
+          return b.createdAt.compareTo(a.createdAt);
+        });
+        break;
+        
+      case ListSortOption.date:
+        sortedTasks.sort((a, b) {
+          // Håndter null datoer (opgaver uden deadline lægges til sidst)
+          if (a.dueDate == null && b.dueDate == null) return 0;
+          if (a.dueDate == null) return 1;
+          if (b.dueDate == null) return -1;
+          // Dato: Snarest først
+          return a.dueDate!.compareTo(b.dueDate!);
+        });
+        break;
+        
+      case ListSortOption.alphabetical:
+        sortedTasks.sort((a, b) {
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        });
+        break;
+    }
+    return sortedTasks;
+  }
   
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currentUser = FirebaseAuth.instance.currentUser;
     final isOwner = currentUser?.uid == widget.list.ownerId;
+    
+    // Hent opgaver og sorter dem
+    final rawTasks = widget.vm.allTasks.where((t) => t.listId == widget.list.id).toList();
+    final sortedTasks = _getSortedTasks(rawTasks);
+    
     final isDark = theme.brightness == Brightness.dark;
-
-    // 1. Hent alle opgaver til denne liste
-    final allListTasks = widget.vm.allTasks.where((t) => t.listId == widget.list.id).toList();
-    
-    // RETTELSE 1: Brug viewmodel'ens state i stedet for listens (som ikke har feltet)
-    final showCompleted = widget.vm.showCompleted;
-    
-    // 2. Filtrer listen: Skal vi vise alt eller kun aktive?
-    List<TodoTask> visibleTasks = List.from(
-      showCompleted 
-          ? allListTasks 
-          : allListTasks.where((t) => !t.isCompleted)
-    );
-
-    // 3. SORTERING
-    visibleTasks.sort((a, b) {
-      if (a.isCompleted != b.isCompleted) {
-        return a.isCompleted ? 1 : -1; 
-      }
-      return b.createdAt.compareTo(a.createdAt);
-    });
-
-    final activeCount = allListTasks.where((t) => !t.isCompleted).length;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -137,9 +166,7 @@ class _TodoListCardState extends State<TodoListCard> {
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           subtitle: Text(
-            showCompleted 
-                ? "${allListTasks.length} opgaver • ${widget.list.memberIds.length} medlemmer"
-                : "$activeCount opgaver (af ${allListTasks.length}) • ${widget.list.memberIds.length} medlemmer",
+            "${sortedTasks.length} opgaver • ${widget.list.memberIds.length} medlemmer",
             style: TextStyle(color: Colors.grey[600], fontSize: 12),
           ),
           leading: Container(
@@ -150,46 +177,99 @@ class _TodoListCardState extends State<TodoListCard> {
             ),
             child: Icon(Icons.list, color: theme.colorScheme.primary, size: 20),
           ),
-          trailing: PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.grey),
-            onSelected: (value) {
-              if (value == 'members') _showMembersDialog(context);
-              if (value == 'delete') _showDeleteListDialog(context);
-              // RETTELSE 2: Kald metoden uden argumenter (Global toggle)
-              if (value == 'toggle_completed') widget.vm.toggleListShowCompleted();
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'members',
-                child: Row(
-                  children: [
-                    Icon(Icons.group_outlined, size: 20),
-                    SizedBox(width: 8),
-                    Text("Medlemmer"),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'toggle_completed',
-                child: Row(
-                  children: [
-                    Icon(showCompleted ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20),
-                    SizedBox(width: 8),
-                    Text(showCompleted ? "Skjul færdige" : "Vis færdige"),
-                  ],
-                ),
-              ),
-              if (isOwner)
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text("Slet liste", style: TextStyle(color: Colors.red)),
-                    ],
+          // --- OPDATERET TRAILING: Sortering + Menu ---
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Sorterings knap
+              PopupMenuButton<ListSortOption>(
+                icon: Icon(Icons.sort_rounded, color: theme.colorScheme.primary.withOpacity(0.7)),
+                tooltip: "Sortering",
+                onSelected: (ListSortOption option) {
+                  setState(() {
+                    _currentSort = option;
+                  });
+                },
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<ListSortOption>>[
+                  PopupMenuItem<ListSortOption>(
+                    value: ListSortOption.priority,
+                    child: Row(
+                      children: [
+                        Icon(Icons.flag_outlined, 
+                          color: _currentSort == ListSortOption.priority ? theme.colorScheme.primary : Colors.grey, 
+                          size: 20
+                        ),
+                        const SizedBox(width: 12),
+                        Text("Prioritet (Høj-Lav)", 
+                          style: TextStyle(fontWeight: _currentSort == ListSortOption.priority ? FontWeight.bold : FontWeight.normal)
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  PopupMenuItem<ListSortOption>(
+                    value: ListSortOption.date,
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today_outlined, 
+                          color: _currentSort == ListSortOption.date ? theme.colorScheme.primary : Colors.grey, 
+                          size: 20
+                        ),
+                        const SizedBox(width: 12),
+                        Text("Dato (Snarest)", 
+                           style: TextStyle(fontWeight: _currentSort == ListSortOption.date ? FontWeight.bold : FontWeight.normal)
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<ListSortOption>(
+                    value: ListSortOption.alphabetical,
+                    child: Row(
+                      children: [
+                        Icon(Icons.sort_by_alpha_outlined, 
+                          color: _currentSort == ListSortOption.alphabetical ? theme.colorScheme.primary : Colors.grey, 
+                          size: 20
+                        ),
+                        const SizedBox(width: 12),
+                        Text("Alfabetisk (A-Å)", 
+                           style: TextStyle(fontWeight: _currentSort == ListSortOption.alphabetical ? FontWeight.bold : FontWeight.normal)
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              
+              // Eksisterende Menu (Medlemmer / Slet)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.grey),
+                onSelected: (value) {
+                  if (value == 'members') _showMembersDialog(context);
+                  if (value == 'delete') _showDeleteListDialog(context);
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'members',
+                    child: Row(
+                      children: [
+                        Icon(Icons.group_outlined, size: 20),
+                        SizedBox(width: 8),
+                        Text("Medlemmer"),
+                      ],
+                    ),
+                  ),
+                  if (isOwner)
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text("Slet liste", style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
           children: [
@@ -221,28 +301,14 @@ class _TodoListCardState extends State<TodoListCard> {
               ),
             ),
 
-            if (visibleTasks.isEmpty)
+            if (sortedTasks.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Text(
-                      allListTasks.isEmpty 
-                          ? "Ingen opgaver endnu." 
-                          : "Alle opgaver er færdige! 🎉", 
-                      style: TextStyle(color: Colors.grey[400], fontStyle: FontStyle.italic),
-                    ),
-                    if (allListTasks.isNotEmpty && !showCompleted)
-                      TextButton(
-                        // RETTELSE 3: Også her, kald uden argumenter
-                        onPressed: () => widget.vm.toggleListShowCompleted(),
-                        child: const Text("Vis færdige opgaver", style: TextStyle(fontSize: 12)),
-                      )
-                  ],
-                ),
+                child: Text("Ingen opgaver endnu.", style: TextStyle(color: Colors.grey[400], fontStyle: FontStyle.italic)),
               )
             else
-              ...visibleTasks.map((task) => TaskCard(
+              // Bruger nu 'sortedTasks' i stedet for 'listTasks'
+              ...sortedTasks.map((task) => TaskCard(
                 task: task, 
                 onTap: () => _openTaskDetail(context, task),
                 onToggle: () => widget.vm.toggleTask(task.id),

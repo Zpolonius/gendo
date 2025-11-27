@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../viewmodel.dart';
-import '../services/notification_service.dart'; // Husk import
+import '../services/notification_service.dart'; 
+import '../viewmodels/app_view_model.dart';
 
 class PomodoroScreen extends StatefulWidget {
   const PomodoroScreen({super.key});
@@ -302,7 +303,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                   FloatingActionButton(
                     heroTag: 'task_complete',
                     onPressed: () async {
-                      await vm.completeTaskAndContinue();
+                       vm.completeWorkSession(true);
                       if (context.mounted) _showNextTaskSelector(context, vm);
                     },
                     backgroundColor: Colors.green, 
