@@ -1,23 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../repository.dart';
-import '../services/notification_service.dart'; // Husk import
+import '../repository.dart'; // Tjek at stien passer
+import '../services/notification_service.dart'; // Tjek at stien passer
 
 abstract class BaseViewModel extends ChangeNotifier {
   TaskRepository _repository;
-  final NotificationService notificationService; // NYT FELT
+  final NotificationService notificationService;
+  
+  // Vi gemmer brugeren her internt
+  User? _user;
+  
   bool _isLoading = false;
 
-  // Opdateret constructor der tager notificationService med
-  BaseViewModel(this._repository, this.notificationService);
+  // Constructor tager user med (valgfri)
+  BaseViewModel(this._repository, this.notificationService, {User? user}) : _user = user;
 
-  // Getters
+  // --- GETTERS ---
   TaskRepository get repository => _repository;
   bool get isLoading => _isLoading;
-  User? get currentUser => FirebaseAuth.instance.currentUser;
+  
+  // HER ER FIXET: Vi definerer 'currentUser' getteren, så task_mixin kan finde den.
+  // Vi returnerer _user (den stabile bruger fra main) i stedet for FirebaseAuth.instance.currentUser
+  User? get currentUser => _user; 
 
+  // --- METODER ---
   void updateRepository(TaskRepository newRepo) {
     _repository = newRepo;
+    notifyListeners();
+  }
+
+  void updateUser(User? user) {
+    _user = user;
+    notifyListeners();
   }
 
   void setLoading(bool loading) {
@@ -26,6 +40,6 @@ abstract class BaseViewModel extends ChangeNotifier {
   }
 
   void handleError(dynamic e) {
-    print("ViewModel Error: $e");
+    debugPrint("ViewModel Error: $e");
   }
 }

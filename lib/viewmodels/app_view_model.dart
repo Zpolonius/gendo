@@ -1,35 +1,46 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import '../repository.dart';
-import '../services/notification_service.dart'; // Husk import
+import '../services/notification_service.dart';
 import 'base_view_model.dart';
 import 'mixins/theme_mixin.dart';
 import 'mixins/task_mixin.dart';
 import 'mixins/pomodoro_mixin.dart';
 
+// Exports til resten af appen
 export 'mixins/pomodoro_mixin.dart' show TimerStatus;
 export '../models.dart';
 export '../models/todo_list.dart';
 
 class AppViewModel extends BaseViewModel with ThemeMixin, TaskMixin, PomodoroMixin {
   
-  // Opdateret constructor: Nu med 2 argumenter
-  AppViewModel(TaskRepository repository, NotificationService notificationService) 
-      : super(repository, notificationService) {
+  // Constructor: Tager nu User? med som valgfri parameter
+  AppViewModel(
+    super.repository, 
+    super.notificationService, 
+    {super.user}
+  ) {
+    // Vi loader data med det samme
     loadData();
   }
 
   @override
-  void updateRepository(TaskRepository repository) {
-    super.updateRepository(repository);
+  void updateRepository(TaskRepository newRepo) {
+    super.updateRepository(newRepo);
+    // Genindlæs data når repository skifter (f.eks. ved login)
     loadData();
   }
 
   Future<void> loadData() async {
     setLoading(true);
-    await Future.wait([
-      loadTaskData(),
-      loadThemeData(),
-      loadPomodoroData(),
-    ]);
+    try {
+      await Future.wait([
+        loadTaskData(),    // Fra TaskMixin
+        loadThemeData(),   // Fra ThemeMixin
+        loadPomodoroData(),// Fra PomodoroMixin
+      ]);
+    } catch (e) {
+      handleError(e);
+    }
     setLoading(false);
   }
 }
