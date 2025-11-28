@@ -1,6 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
+
 import '../repository.dart';
-import '../services/notification_service.dart';
+
 import 'base_view_model.dart';
 import 'mixins/theme_mixin.dart';
 import 'mixins/task_mixin.dart';

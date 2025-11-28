@@ -199,7 +199,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final vm = context.watch<AppViewModel>();
+    context.watch<AppViewModel>();
     final theme = Theme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
