@@ -71,9 +71,9 @@ class _LoginScreenState extends State<LoginScreen> {
         String msg = e.toString();
         if (msg.contains('email-already-in-use')) {
           msg = "Denne e-mail er allerede i brug.";
-        } else if (msg.contains('weak-password')) msg = "Adgangskoden er for svag.";
-        else if (msg.contains('user-not-found')) msg = "Bruger ikke fundet.";
-        else if (msg.contains('wrong-password')) msg = "Forkert adgangskode.";
+        } else if (msg.contains('weak-password')) {msg = "Adgangskoden er for svag.";}
+        else if (msg.contains('user-not-found')) {msg = "Bruger ikke fundet.";}
+        else if (msg.contains('wrong-password')) {msg = "Forkert adgangskode.";}
         
         _errorMessage = msg;
       });

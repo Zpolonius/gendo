@@ -250,34 +250,34 @@ class _TodoListScreenState extends State<TodoListScreen> {
                   const SizedBox(height: 15),
                   
                   // Noter input - Optimeret af GenDo CTO
-TextField(
-  controller: descController,
-  minLines: 3, // Starter med god plads så man kan se det er til noter
-  maxLines: 6, // Kan vokse hvis man skriver meget
-  style: const TextStyle(color: Colors.white), // Sikre hvid tekst
-  textCapitalization: TextCapitalization.sentences, // UX: Start sætninger med stort
-  decoration: InputDecoration(
-    labelText: "Noter/Beskrivelse",
-    labelStyle: TextStyle(color: Colors.grey[400]),
-    hintText: "Tilføj detaljer...",
-    hintStyle: TextStyle(color: Colors.grey[600]),
-    filled: true,
-    fillColor: const Color(0xFF2C2C2E), // Mørk baggrund så feltet er tydeligt ("Boksen")
-    
-    // Pæn border der viser det er et aktivt felt
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
-    ),
-    
-    contentPadding: const EdgeInsets.all(16), // Mere luft så det er nemmere at trykke
-    alignLabelWithHint: true, // Pænere layout ved multiline
-  ),
-),
+              TextField(
+                    controller: descController,
+                    minLines: 3, // Starter med god plads så man kan se det er til noter
+                    maxLines: 6, // Kan vokse hvis man skriver meget
+                    style: const TextStyle(color: Colors.white), // Sikre hvid tekst
+                    textCapitalization: TextCapitalization.sentences, // UX: Start sætninger med stort
+                    decoration: InputDecoration(
+                      labelText: "Noter/Beskrivelse",
+                      labelStyle: TextStyle(color: Colors.grey[400]),
+                      hintText: "Tilføj detaljer...",
+                      hintStyle: TextStyle(color: Colors.grey[600]),
+                      filled: true,
+                      fillColor: const Color(0xFF2C2C2E), // Mørk baggrund så feltet er tydeligt ("Boksen")
+                      
+                      // Pæn border der viser det er et aktivt felt
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+                      ),
+                      
+                      contentPadding: const EdgeInsets.all(16), // Mere luft så det er nemmere at trykke
+                      alignLabelWithHint: true, // Pænere layout ved multiline
+                    ),
+                  ),
                 ],
               ),
             ),
