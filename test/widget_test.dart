@@ -28,6 +28,18 @@ class MockNotificationService implements NotificationService {
 
   @override
   Future<void> cancelNotification(int id) async {}
+  
+  @override
+  Future<void> cancelAll() {
+    // TODO: implement cancelAll
+    throw UnimplementedError();
+  }
+  
+  @override
+  Future<void> scheduleTimerNotification({required int id, required String title, required String body, required DateTime scheduledTime}) {
+    // TODO: implement scheduleTimerNotification
+    throw UnimplementedError();
+  }
 }
 
 void main() {
