@@ -1,19 +1,27 @@
 import 'dart:async';
+import 'package:flutter/material.dart'; // Nødvendig for DateTime og Widgets
 import '../base_view_model.dart';
 import '../../models.dart';
-import 'task_mixin.dart'; // Nødvendig for at kunne kalde toggleTask
+import 'task_mixin.dart';
+import '../../services/notification_service.dart';
+
+
 
 enum TimerStatus { idle, working, finishedWork, onBreak }
 
-/// Håndterer Pomodoro Timer logik.
-/// Afhænger af TaskMixin for at kunne markere valgte opgaver som færdige.
 mixin PomodoroMixin on BaseViewModel, TaskMixin {
   
+  final NotificationService _notificationService = NotificationService();
+
   // State
   PomodoroSettings _pomodoroSettings = PomodoroSettings(); 
   int _pomodoroDurationTotal = 25 * 60;
   int _pomodoroTimeLeft = 25 * 60;
   Timer? _timer;
+  
+  // NY: Holder styr på det faktiske sluttidspunkt
+  DateTime? _timerEndTime; 
+  
   TimerStatus _timerStatus = TimerStatus.idle;
   int _sessionsCompleted = 0;
   String? _selectedTaskId;
@@ -33,7 +41,6 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
   TodoTask? get selectedTaskObj {
     if (_selectedTaskId == null) return null;
     try {
-      // allTasks kommer fra TaskMixin
       return allTasks.firstWhere((t) => t.id == _selectedTaskId);
     } catch (e) {
       return null;
@@ -46,7 +53,6 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
     try {
       _pomodoroSettings = await repository.getPomodoroSettings();
       
-      // Hvis timeren ikke kører, opdater varigheden til de gemte indstillinger
       if (_timerStatus == TimerStatus.idle) {
         _pomodoroDurationTotal = _pomodoroSettings.workDurationMinutes * 60;
         _pomodoroTimeLeft = _pomodoroDurationTotal;
@@ -73,13 +79,29 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
   
   void startTimer() { 
     if (_timer != null) return; 
+    
+    // Sæt status hvis vi starter fra idle
     if (_timerStatus == TimerStatus.idle) _timerStatus = TimerStatus.working; 
+    
+    // 1. Beregn hvornår tiden faktisk udløber (NU + resterende sekunder)
+    _timerEndTime = DateTime.now().add(Duration(seconds: _pomodoroTimeLeft));
+    
+    // 2. Planlæg notifikationen til dette tidspunkt
+    _scheduleCompletionNotification();
+
     notifyListeners(); 
     
+    // 3. Start loopet der opdaterer UI
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) { 
-      if (_pomodoroTimeLeft > 0) { 
-        _pomodoroTimeLeft--; 
+      final now = DateTime.now();
+      
+      if (_timerEndTime != null && now.isBefore(_timerEndTime!)) {
+        // Beregn resterende tid baseret på forskellen (Wall-clock)
+        // Dette sikrer at tiden er korrekt selvom appen har været lukket
+        _pomodoroTimeLeft = _timerEndTime!.difference(now).inSeconds;
       } else { 
+        // Tiden er udløbet
+        _pomodoroTimeLeft = 0;
         stopTimer(); 
         _handleTimerComplete(); 
       } 
@@ -90,6 +112,8 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
   void stopTimer() { 
     _timer?.cancel(); 
     _timer = null; 
+    _timerEndTime = null; // Nulstil sluttidspunkt
+    _notificationService.cancelAll(); // Fjern notifikationen hvis brugeren stopper manuelt
     notifyListeners(); 
   }
   
@@ -99,6 +123,28 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
     _pomodoroTimeLeft = _pomodoroDurationTotal; 
     _timerStatus = TimerStatus.idle; 
     notifyListeners(); 
+  }
+
+  // Hjælpefunktion til notifikationer
+  void _scheduleCompletionNotification() {
+    if (_timerEndTime == null) return;
+    
+    String title = _timerStatus == TimerStatus.working ? "Tiden er gået!" : "Pausen er slut!";
+    String body = _timerStatus == TimerStatus.working 
+        ? "Godt arbejde! Tag en pause eller fortsæt." 
+        : "Klar til at fokusere igen?";
+
+    if (_selectedTaskId != null && _timerStatus == TimerStatus.working) {
+      final task = selectedTaskObj;
+      if (task != null) body = "Fik du lavet '${task.title}'?";
+    }
+
+    _notificationService.scheduleTimerNotification(
+      id: 0,
+      title: title,
+      body: body,
+      scheduledTime: _timerEndTime!,
+    );
   }
   
   void _handleTimerComplete() { 
@@ -111,7 +157,6 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
   
   void completeWorkSession(bool isTaskDone) { 
     if (isTaskDone && _selectedTaskId != null) { 
-       // Kalder toggleTask fra TaskMixin
        toggleTask(_selectedTaskId!);
        _selectedTaskId = null; 
     } 
@@ -122,10 +167,9 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
       return; 
     }
     
-    int breakMinutes = 10; // Default kort pause
-    // Check om det skal være en lang pause
+    int breakMinutes = 10; 
     if (_pomodoroSettings.enableLongBreaks && _sessionsCompleted % 3 == 0) {
-      breakMinutes = 30; // Lang pause hver 3. gang (eksempelvis)
+      breakMinutes = 30; 
     }
     
     startBreak(breakMinutes); 
@@ -135,7 +179,10 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
     _pomodoroDurationTotal = minutes * 60; 
     _pomodoroTimeLeft = _pomodoroDurationTotal; 
     _timerStatus = TimerStatus.onBreak; 
+    
+    // Start timeren (og dermed notifikations-logikken) for pausen
     startTimer(); 
+    
     notifyListeners(); 
   }
   

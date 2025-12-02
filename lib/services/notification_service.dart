@@ -177,4 +177,46 @@ class NotificationService {
   Future<void> cancelNotification(int id) async {
     await _notifications.cancel(id);
   }
+  // --- PLANLÆG TIMER (Kritisk for baggrunds-timeren) ---
+  Future<void> scheduleTimerNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledTime,
+  }) async {
+    // Sikkerhedstjek: Hvis tiden allerede er passeret, gør vi intet
+    if (scheduledTime.isBefore(DateTime.now())) return;
+
+    await _notifications.zonedSchedule(
+      id,
+      title,
+      body,
+      tz.TZDateTime.from(scheduledTime, tz.local),
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'gendo_timer_channel', // Bruger den korrekte kanal til timer
+          'Timer & Fokus',
+          channelDescription: 'Notifikationer når tiden er gået',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+          // onGoing: true, // Kan overvejes, hvis den skal blive liggende
+        ),
+        iOS: DarwinNotificationDetails(
+          presentSound: true,
+          presentAlert: true,
+          presentBanner: true,
+          interruptionLevel: InterruptionLevel.timeSensitive, // Vigtigt for iOS 15+
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle, // Vækker telefonen
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  // --- ANNULLER ALT (Bruges ved reset af timer) ---
+  Future<void> cancelAll() async {
+    await _notifications.cancelAll();
+  }
 }
