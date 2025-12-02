@@ -1,4 +1,4 @@
-package com.example.gendo
+package com.zpolonius.gendo
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -19,7 +19,7 @@ if (keystoreFileInApp.exists()) {
 }
 
 android {
-    namespace = "com.example.gendo"
+    namespace = "com.zpolonius.gendo"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -35,7 +35,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.gendo"
+        applicationId = "com.zpolonius.gendo"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
