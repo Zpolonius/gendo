@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:confetti/confetti.dart'; // HUSK AT KØRE: flutter pub add confetti
-import '../models.dart';
 import '../viewmodel.dart';
 
 class TaskDetailScreen extends StatefulWidget {

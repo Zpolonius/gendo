@@ -37,7 +37,7 @@ class DateSelector extends StatelessWidget {
           style: TextStyle(
             fontSize: 12, 
             fontWeight: FontWeight.bold, 
-            color: theme.colorScheme.onSurface.withOpacity(0.6)
+            color: theme.colorScheme.onSurface
           )
         ),
         const SizedBox(height: 8),
@@ -83,7 +83,7 @@ class DateSelector extends StatelessWidget {
                         : (isDark ? Colors.white24 : Colors.grey.shade400)
                   ),
                   borderRadius: BorderRadius.circular(12),
-                  color: isOverdue ? Colors.redAccent.withOpacity(0.05) : null,
+                  color: isOverdue ? Colors.redAccent : null,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,

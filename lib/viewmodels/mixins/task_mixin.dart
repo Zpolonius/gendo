@@ -8,7 +8,7 @@ mixin TaskMixin on BaseViewModel {
   // State
   List<TodoList> _lists = [];
   String? _activeListId;
-  Map<String, List<TodoTask>> _tasksByList = {};
+  final Map<String, List<TodoTask>> _tasksByList = {};
   List<String> _categories = [];
   
   final Map<String, bool> _listVisibilitySettings = {};

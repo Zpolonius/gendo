@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 // import 'package:gendo/firebase_options.dart'; // Aktiver denne hvis du har filen
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'repository.dart';
 import 'viewmodels/app_view_model.dart'; // Peger på din fil i roden af lib eller viewmodels mappe
@@ -18,7 +20,9 @@ import 'screens/todo_list_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+  //sikre dansk format i kalender
+  await initializeDateFormatting('da_DK', null);
+
   try {
     // Hvis du har genereret firebase options:
     // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -108,6 +112,16 @@ class GenDoMaterialApp extends StatelessWidget {
     return MaterialApp(
       title: 'GenDo',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('da', 'DK'), // Dansk
+        Locale('en', 'US'), // Engelsk (fallback)
+      ],
+      locale: const Locale('da', 'DK'),
       
       // Light Theme
       theme: ThemeData(

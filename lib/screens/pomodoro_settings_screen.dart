@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel.dart';
-import '../models.dart';
 import '../widgets/circular_time_picker.dart'; // HUSK AT OPRETTE DENNE FIL
 
 class PomodoroSettingsScreen extends StatefulWidget {

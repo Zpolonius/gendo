@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 
-
 import '../viewmodel.dart';
 import '../widgets/priority_selector.dart';
 import '../widgets/date_selector.dart';
 import '../widgets/todo_list_card.dart';
-import '../widgets/repeat_selector.dart'; 
+
 import '../widgets/skeleton_loader.dart';
 
 class TodoListScreen extends StatefulWidget {
@@ -164,13 +163,15 @@ class _TodoListScreenState extends State<TodoListScreen> {
     );
   }
 
-  void _showAddDialog(BuildContext context, AppViewModel vm) {
+void _showAddDialog(BuildContext context, AppViewModel vm) {
     final titleController = TextEditingController();
     final descController = TextEditingController();
     DateTime? selectedDate;
     TaskPriority selectedPriority = TaskPriority.medium;
-    TaskRepeat selectedRepeat = TaskRepeat.never; // DEFAULT
     
+    // Vi fjerner TaskRepeat logikken herfra, da den ikke skal bruges i dialogen
+    
+    // Logik til at vælge standard-liste
     String? targetListId = vm.activeListId ?? (vm.lists.isNotEmpty ? vm.lists.first.id : null);
 
     if (targetListId != null) {
@@ -194,14 +195,20 @@ class _TodoListScreenState extends State<TodoListScreen> {
           return AlertDialog(
             title: const Text("Ny Opgave"),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            // Vi bruger SingleChildScrollView så tastaturet ikke dækker felterne
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 1. Vælg Liste
                   DropdownButtonFormField<String>(
                     initialValue: targetListId,
-                    decoration: const InputDecoration(labelText: "Tilføj til liste"),
+                    decoration: const InputDecoration(
+                      labelText: "Tilføj til liste",
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
                     items: vm.lists.map((list) => DropdownMenuItem(
                       value: list.id,
                       child: Text(list.title),
@@ -213,69 +220,68 @@ class _TodoListScreenState extends State<TodoListScreen> {
                       }
                     },
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 16),
                   
+                  // 2. Titel (Fokus her fra start)
                   TextField(
                     controller: titleController, 
                     autofocus: true,
-                    decoration: const InputDecoration(labelText: "Titel", hintText: "Hvad skal laves?"),
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: "Titel", 
+                      hintText: "Hvad skal laves?",
+                      border: OutlineInputBorder(),
+                      filled: true,
+                      // fillColor: Theme.of(context).cardColor, // Valgfrit
+                    ),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 16),
+
+                  // 3. Dato / Deadline (Flyttet OP og gjort tydelig)
+                  const Text("Deadline", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                     
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: DateSelector(
+                      selectedDate: selectedDate,
+                      onDateChanged: (date) => setState(() => selectedDate = date),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   
+                  // 4. Prioritet
+                  const Text("Prioritet", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
                   PrioritySelector(
                     initialPriority: selectedPriority,
                     onChanged: (val) => setState(() => selectedPriority = val),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 16),
                   
-                  // NY: Gentagelse vælger
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: DateSelector(
-                          selectedDate: selectedDate,
-                          onDateChanged: (date) => setState(() => selectedDate = date),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: RepeatSelector(
-                          initialRepeat: selectedRepeat,
-                          onChanged: (val) => setState(() => selectedRepeat = val),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  
-                  // Noter input - Optimeret af GenDo CTO
-              TextField(
+                  // 5. Noter (Fixet version)
+                  const Text("Noter", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextField(
                     controller: descController,
-                    minLines: 3, // Starter med god plads så man kan se det er til noter
-                    maxLines: 6, // Kan vokse hvis man skriver meget
-                    style: const TextStyle(color: Colors.white), // Sikre hvid tekst
-                    textCapitalization: TextCapitalization.sentences, // UX: Start sætninger med stort
+                    minLines: 3, // Sikrer en god højde fra start
+                    maxLines: 5, // Tillader lidt mere tekst uden at sprænge layoutet
+                    keyboardType: TextInputType.multiline,
+                    textCapitalization: TextCapitalization.sentences,
+                    style: const TextStyle(color: Colors.white), // Sikrer læsbarhed
                     decoration: InputDecoration(
-                      labelText: "Noter/Beskrivelse",
-                      labelStyle: TextStyle(color: Colors.grey[400]),
-                      hintText: "Tilføj detaljer...",
-                      hintStyle: TextStyle(color: Colors.grey[600]),
+                      hintText: "Tilføj beskrivelse...",
+                      hintStyle: TextStyle(color: Colors.grey[500]),
                       filled: true,
-                      fillColor: const Color(0xFF2C2C2E), // Mørk baggrund så feltet er tydeligt ("Boksen")
-                      
-                      // Pæn border der viser det er et aktivt felt
-                      enabledBorder: OutlineInputBorder(
+                      fillColor: const Color(0xFF2C2C2E), // Mørk baggrund
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                        borderSide: BorderSide.none,
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
-                      ),
-                      
-                      contentPadding: const EdgeInsets.all(16), // Mere luft så det er nemmere at trykke
-                      alignLabelWithHint: true, // Pænere layout ved multiline
+                      contentPadding: const EdgeInsets.all(12),
                     ),
                   ),
                 ],
@@ -283,24 +289,26 @@ class _TodoListScreenState extends State<TodoListScreen> {
             ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuller")),
-              ElevatedButton(onPressed: () {
-                if (titleController.text.isNotEmpty && targetListId != null) {
-                  vm.setActiveList(targetListId!);
-                  vm.addTask(
-                    titleController.text,
-                    category: "Generelt", 
-                    description: descController.text,
-                    dueDate: selectedDate, 
-                    priority: selectedPriority,
-                    repeat: selectedRepeat, // Sender den valgte gentagelse med
-                  );
-                  Navigator.pop(context);
-                }
-              }, child: const Text("Tilføj")),
+              ElevatedButton(
+                onPressed: () {
+                  if (titleController.text.isNotEmpty && targetListId != null) {
+                    vm.setActiveList(targetListId!);
+                    vm.addTask(
+                      titleController.text,
+                      category: "Generelt", 
+                      description: descController.text,
+                      dueDate: selectedDate, 
+                      priority: selectedPriority,
+                      repeat: TaskRepeat.never, // Vi sender 'never' da repeat-vælgeren er fjernet
+                    );
+                    Navigator.pop(context);
+                  }
+                }, 
+                child: const Text("Tilføj")
+              ),
             ],
           );
         }
       ),
     );
-  }
-}
+}}

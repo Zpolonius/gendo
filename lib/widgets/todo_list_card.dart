@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models.dart';
-import '../models/todo_list.dart';
 import '../viewmodel.dart';
 import '../screens/task_detail_screen.dart';
 import 'task_card.dart';
