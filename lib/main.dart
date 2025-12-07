@@ -182,15 +182,35 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<User?>();
-    
-    // Fordi vi bruger initialData i main.dart, vil 'user' være sat med det samme,
-    // hvis man tidligere har logget ind.
-    if (user != null) {
-      return const MainScreen();
-    } else {
-      return const LoginScreen();
-    }
+    // Vi henter AuthService uden at lytte (listen: false), da StreamBuilder står for lytningen
+    final authService = Provider.of<AuthService>(context, listen: false);
+
+    return StreamBuilder<User?>(
+      stream: authService.user,
+      builder: (context, snapshot) {
+        // 1. LOADING STATE:
+        // Hvis forbindelsen venter, betyder det, at Firebase er ved at tjekke persistence/disk.
+        // Vis en ladeskærm i stedet for LoginScreen for at undgå "blinket".
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(), 
+              // Eller brug dit logo: Image.asset('assets/gendo_logo.png', width: 100),
+            ),
+          );
+        }
+
+        // 2. LOGGED IN:
+        // Hvis streamen har data (en bruger), viser vi hovedskærmen.
+        if (snapshot.hasData) {
+          return const MainScreen();
+        }
+
+        // 3. LOGGED OUT:
+        // Kun hvis Firebase er færdig med at tjekke OG der ingen bruger er, viser vi login.
+        return const LoginScreen();
+      },
+    );
   }
 }
 
