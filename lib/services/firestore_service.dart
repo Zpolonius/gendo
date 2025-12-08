@@ -134,9 +134,19 @@ class FirestoreService implements TaskRepository {
   }
 
   @override Future<void> ensureUserDocument(String email) async { /* ... */ }
+
+  //lister
   @override Future<List<TodoList>> getLists() async {
     final snapshot = await _listsCollection.where('memberIds', arrayContains: _userId).get();
-    return snapshot.docs.map((doc) => TodoList.fromMap(doc.data() as Map<String, dynamic>)).toList();
+    final lists = snapshot.docs.map((doc) => TodoList.fromMap(doc.data() as Map<String, dynamic>)).toList();
+
+     
+    // Vi sorterer manuelt her, da Firestore ikke kan lave "orderBy" på felter der ikke er med i "where" claues 
+    // uden komplekse composite indexes, som kan fejle uden opsætning. 
+    // Dette er sikkert for små/mellemstore mængder data.
+    lists.sort((a, b)=> a.createdAt.compareTo(b.createdAt));
+    return lists;
+    
   }
   @override Future<void> createList(TodoList list) async {
     final members = [...list.memberIds];

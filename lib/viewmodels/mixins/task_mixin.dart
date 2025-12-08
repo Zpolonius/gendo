@@ -66,7 +66,7 @@ mixin TaskMixin on BaseViewModel {
         final tasks = await repository.getTasks(list.id);
         _tasksByList[list.id] = tasks;
       }
-      notifyListeners(); // Vigtigt at opdatere UI efter load
+      notifyListeners();
     } catch (e) {
       handleError(e);
     }
@@ -82,12 +82,14 @@ mixin TaskMixin on BaseViewModel {
   Future<void> createList(String title) async {
     if (currentUser == null) return;
 
+    // Vi sætter 'order' til listen længde, så den kommer sidst
     final newList = TodoList(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: title,
       ownerId: currentUser!.uid,
       memberIds: [currentUser!.uid],
       createdAt: DateTime.now(),
+      order: _lists.length, 
     );
 
     // Optimistic Update
@@ -105,6 +107,59 @@ mixin TaskMixin on BaseViewModel {
       if (_activeListId == newList.id) _activeListId = null;
       notifyListeners();
       handleError(e);
+    }
+  }
+
+  // NY: Omdøb liste
+  Future<void> updateListTitle(String listId, String newTitle) async {
+    final index = _lists.indexWhere((l) => l.id == listId);
+    if (index == -1) return;
+
+    final oldList = _lists[index];
+    final updatedList = oldList.copyWith(title: newTitle);
+
+    // Optimistic
+    _lists[index] = updatedList;
+    notifyListeners();
+
+    try {
+      await repository.updateList(updatedList);
+    } catch (e) {
+      // Revert
+      _lists[index] = oldList;
+      notifyListeners();
+      handleError(e);
+    }
+  }
+
+  // NY: Ændre rækkefølge (Reorder)
+  Future<void> reorderLists(int oldIndex, int newIndex) async {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    
+    // 1. Opdater lokalt state
+    final TodoList item = _lists.removeAt(oldIndex);
+    _lists.insert(newIndex, item);
+    notifyListeners();
+
+    // 2. Opdater 'order' feltet for alle lister i databasen
+    // For effektivitet skyld opdaterer vi alle, da det er en relativt lille liste (oftest < 20)
+    // En optimering kunne være kun at opdatere dem mellem oldIndex og newIndex.
+    try {
+      for (int i = 0; i < _lists.length; i++) {
+        final list = _lists[i];
+        if (list.order != i) { // Kun opdater hvis rækkefølgen faktisk er ændret
+          final updatedList = list.copyWith(order: i);
+          // Vi opdaterer den i hukommelsen så state matcher DB
+          _lists[i] = updatedList; 
+          await repository.updateList(updatedList);
+        }
+      }
+    } catch (e) {
+      handleError(e);
+      // Ved fejl bør vi genindlæse data for at sikre konsistens
+      loadTaskData();
     }
   }
 
@@ -229,7 +284,6 @@ mixin TaskMixin on BaseViewModel {
   }
 
   // Central metode til opdatering af opgaver - Nu med Optimistic UI
- // Central metode til opdatering af opgaver - Nu med Optimistic UI
   Future<void> updateTaskDetails(TodoTask task, {String? oldListId}) async {
     // Scenario 1: Flytning mellem lister
     if (oldListId != null && oldListId != task.listId) {
@@ -395,7 +449,6 @@ mixin TaskMixin on BaseViewModel {
     try {
       await repository.addCategory(category); 
     } catch (e) {
-      // Revert er sjældent nødvendigt her, men kan tilføjes hvis strengt
       print("Kunne ikke gemme kategori: $e");
     }
   }

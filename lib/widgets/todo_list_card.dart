@@ -72,7 +72,33 @@ class _TodoListCardState extends State<TodoListCard> {
       builder: (ctx) => MemberManagementDialog(list: widget.list),
     );
   }
-
+  // --- NY: REDIGER NAVN DIALOG ---
+  void _showRenameDialog(BuildContext context) {
+    final controller = TextEditingController(text: widget.list.title);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Omdøb Liste"),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: "Nyt navn"),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Annuller")),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                widget.vm.updateListTitle(widget.list.id, controller.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text("Gem"),
+          )
+        ],
+      ),
+    );
+  }
   void _showDeleteListDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -246,6 +272,7 @@ class _TodoListCardState extends State<TodoListCard> {
                 onSelected: (value) {
                   if (value == 'toggle_completed') widget.vm.toggleShowCompletedTasks(widget.list.id);
                   if (value == 'members') _showMembersDialog(context);
+                  if (value == 'rename') _showRenameDialog(context);
                   if (value == 'delete') _showDeleteListDialog(context);
                 },
                 itemBuilder: (context) => [
@@ -263,6 +290,11 @@ class _TodoListCardState extends State<TodoListCard> {
                       ],
                     ),
                   ),
+                  if (isOwner) ...[
+                const PopupMenuItem(
+                  value: 'rename',
+                  child: Row(children: [Icon(Icons.edit_outlined, size: 20), SizedBox(width: 8), Text("Omdøb")]),
+                ),
                   const PopupMenuItem(
                     value: 'members',
                     child: Row(
@@ -273,6 +305,7 @@ class _TodoListCardState extends State<TodoListCard> {
                       ],
                     ),
                   ),
+                  
                   if (isOwner)
                     const PopupMenuItem(
                       value: 'delete',
@@ -285,7 +318,7 @@ class _TodoListCardState extends State<TodoListCard> {
                       ),
                     ),
                 ],
-              ),
+            ]),
             ],
           ),
 

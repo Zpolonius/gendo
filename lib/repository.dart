@@ -12,8 +12,8 @@ abstract class TaskRepository {
   // Lister
   Future<List<TodoList>> getLists();
   Future<void> createList(TodoList list);
+  Future<void> updateList(TodoList list); // NY
   Future<void> deleteList(String listId);
-  Future<void> updateList(TodoList list);
   
   // Medlemmer
   Future<void> inviteUserByEmail(String listId, String email);
@@ -39,18 +39,19 @@ abstract class TaskRepository {
 
 class MockTaskRepository implements TaskRepository {
   // Mock implementationer...
-    @override Future<List<TodoTask>> getTasks(String listId) async => [];
+  @override Future<List<TodoTask>> getTasks(String listId) async => [];
   @override Future<void> addTask(TodoTask task) async {}
   @override Future<void> updateTask(TodoTask task) async {}
   @override Future<void> deleteTask(String listId, String taskId) async {}
   @override Future<List<TodoList>> getLists() async => [];
   @override Future<void> createList(TodoList list) async {}
+  @override Future<void> updateList(TodoList list) async {} // Mock impl
   @override Future<void> deleteList(String listId) async {}
   @override Future<void> inviteUserByEmail(String listId, String email) async {}
   @override Future<void> removeUserFromList(String listId, String userIdToRemove) async {}
   @override Future<void> checkPendingInvites(String email) async {}
   @override Future<List<Map<String, String>>> getMembersDetails(List<String> memberIds) async => [];
-  @override Future<void> updateList(TodoList list) async {}
+  
   @override Future<void> ensureUserDocument(String email) async {} // Mock gør intet
 
   @override Future<List<String>> getCategories() async => ['Generelt'];

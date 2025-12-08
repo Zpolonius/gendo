@@ -5,7 +5,7 @@ class TodoList {
   final List<String> memberIds;
   final List<String> pendingEmails;
   final DateTime createdAt;
-  final bool showCompleted; // NYT FELT
+  final int order; // NYT FELT: Til sortering
 
   TodoList({
     required this.id,
@@ -14,8 +14,28 @@ class TodoList {
     required this.memberIds,
     this.pendingEmails = const [],
     required this.createdAt,
-    this.showCompleted = false, // Standard: Skjul færdige (false = vis ikke)
+    this.order = 0, // Default værdi
   });
+
+  TodoList copyWith({
+    String? id,
+    String? title,
+    String? ownerId,
+    List<String>? memberIds,
+    List<String>? pendingEmails,
+    DateTime? createdAt,
+    int? order,
+  }) {
+    return TodoList(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      ownerId: ownerId ?? this.ownerId,
+      memberIds: memberIds ?? this.memberIds,
+      pendingEmails: pendingEmails ?? this.pendingEmails,
+      createdAt: createdAt ?? this.createdAt,
+      order: order ?? this.order,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -25,7 +45,7 @@ class TodoList {
       'memberIds': memberIds,
       'pendingEmails': pendingEmails, 
       'createdAt': createdAt.millisecondsSinceEpoch,
-      'showCompleted': showCompleted, // Gem indstilling
+      'order': order,
     };
   }
 
@@ -37,25 +57,7 @@ class TodoList {
       memberIds: List<String>.from(map['memberIds'] ?? []),
       pendingEmails: List<String>.from(map['pendingEmails'] ?? []), 
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
-      showCompleted: map['showCompleted'] ?? false, // Default til false for eksisterende lister
-    );
-  }
-
-  // Helper til at kopiere objektet med ændringer
-  TodoList copyWith({
-    String? title,
-    List<String>? memberIds,
-    List<String>? pendingEmails,
-    bool? showCompleted,
-  }) {
-    return TodoList(
-      id: id,
-      title: title ?? this.title,
-      ownerId: ownerId,
-      memberIds: memberIds ?? this.memberIds,
-      pendingEmails: pendingEmails ?? this.pendingEmails,
-      createdAt: createdAt,
-      showCompleted: showCompleted ?? this.showCompleted,
+      order: map['order'] ?? 0,
     );
   }
 }
