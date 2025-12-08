@@ -6,7 +6,6 @@ import '../viewmodel.dart';
 import '../widgets/priority_selector.dart';
 import '../widgets/date_selector.dart';
 import '../widgets/todo_list_card.dart';
-
 import '../widgets/skeleton_loader.dart';
 
 class TodoListScreen extends StatefulWidget {
@@ -59,7 +58,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
             ),
             const SizedBox(height: 16),
           ],
-
+          //hovedknap med list og opgave
           FloatingActionButton(
             heroTag: 'main_fab',
             onPressed: () {
@@ -76,7 +75,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
           ),
         ],
       ),
-      
+            // Klik på baggrunden for at lukke menuen
       body: GestureDetector(
         onTap: () {
           if (_isFabExpanded) setState(() => _isFabExpanded = false);
@@ -115,16 +114,29 @@ class _TodoListScreenState extends State<TodoListScreen> {
                   // 3. Ellers vis den rigtige liste
                   return RefreshIndicator(
                     onRefresh: () => vm.loadData(),
-                    child: ListView.builder(
+                    child: ReorderableListView.builder(
                       padding: const EdgeInsets.only(bottom: 100),
                       itemCount: vm.lists.length,
+                      onReorder: (oldIndex, newIndex){
+                        vm.reorderLists(oldIndex, newIndex);
+                      },
+                      proxyDecorator: (child, index, animation) {
+                        return Material(
+                          elevation: 10,
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          child: child,
+                        );
+                      },
                       itemBuilder: (ctx, i) {
                         final list = vm.lists[i];
-                        return TodoListCard(
+                        return KeyedSubtree(
+                          key: ValueKey(list.id),
+                        child: TodoListCard(
                           list: list, 
                           vm: vm,
                           onSwitchTab: widget.onSwitchTab
-                        );
+                        ),);
                       },
                     ),
                   );
