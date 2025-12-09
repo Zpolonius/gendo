@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models.dart';
 import '../models/todo_list.dart';
-import '../models/user_profile.dart';
+import '../models/user_profile.dart'; 
 import '../repository.dart';
 
 class FirestoreService implements TaskRepository {
@@ -27,7 +27,6 @@ class FirestoreService implements TaskRepository {
   }
   
   // --- OPDATER PROFIL (REDIGERING) ---
-  // Vi opdaterer kun de felter, der er tilladt at ændre i profilen
   Future<void> updateUserProfile(UserProfile updatedProfile) async {
     await _userDoc.update({
       'firstName': updatedProfile.firstName,
@@ -39,7 +38,6 @@ class FirestoreService implements TaskRepository {
   }
 
   // --- SLET AL BRUGERDATA (DATA CLEANUP) ---
-  // Denne metode kaldes før Auth-sletning for at undgå "orphaned data"
   Future<void> deleteUserData() async {
     try {
       // 1. Hent alle lister brugeren er relateret til
@@ -59,14 +57,12 @@ class FirestoreService implements TaskRepository {
       await _userDoc.delete();
       
     } catch (e) {
-      // Log fejl, men lad os prøve at fortsætte eller kaste videre
       print("Fejl under sletning af brugerdata: $e");
       rethrow;
     }
   }
 
-  // --- OPDATERET: SLET LISTE + TASKS ---
-  // Firestore sletter IKKE subcollections (tasks) automatisk. Det skal vi gøre manuelt.
+  // --- SLET LISTE + TASKS ---
   @override 
   Future<void> deleteList(String listId) async {
     final docRef = _listsCollection.doc(listId);
@@ -100,34 +96,35 @@ class FirestoreService implements TaskRepository {
   Future<List<Map<String, String>>> getMembersDetails(List<String> memberIds) async {
     if (memberIds.isEmpty) return [];
     
+    // Vi bruger Future.wait for at hente alle medlemmer parallelt (Hurtigere)
+    List<Future<DocumentSnapshot>> futures = memberIds.map((id) {
+      return _db.collection('users').doc(id).get();
+    }).toList();
+
+    final snapshots = await Future.wait(futures);
     List<Map<String, String>> members = [];
-    
-    for (var id in memberIds) {
-      try {
-        final doc = await _db.collection('users').doc(id).get();
+
+    for (var doc in snapshots) {
+      final id = doc.id;
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data() as Map<String, dynamic>;
         
-        if (doc.exists && doc.data() != null) {
-          final data = doc.data()!;
-          String displayName = data['email'] ?? 'Ukendt';
-          
-          if (data['firstName'] != null && data['lastName'] != null) {
-            displayName = "${data['firstName']} ${data['lastName']}";
-          }
-          
-          members.add({
-            'id': id,
-            'email': data['email'] as String,
-            'displayName': displayName,
-          });
-        } else {
-          members.add({
-            'id': id,
-            'email': 'Ukendt',
-            'displayName': 'Bruger uden profil',
-          });
+        String displayName = data['email'] ?? 'Ukendt';
+        if (data['firstName'] != null && data['lastName'] != null) {
+          displayName = "${data['firstName']} ${data['lastName']}";
         }
-      } catch (e) {
-        print("Fejl ved opslag af $id: $e");
+        
+        members.add({
+          'id': id,
+          'email': data['email'] as String,
+          'displayName': displayName,
+        });
+      } else {
+        members.add({
+          'id': id,
+          'email': 'Ukendt',
+          'displayName': 'Bruger uden profil',
+        });
       }
     }
     return members;
@@ -135,11 +132,29 @@ class FirestoreService implements TaskRepository {
 
   @override Future<void> ensureUserDocument(String email) async { /* ... */ }
 
-  //lister
-  @override Future<List<TodoList>> getLists() async {
-    final snapshot = await _listsCollection.where('memberIds', arrayContains: _userId).orderBy('sortOrder', descending: false).get();
-    final lists = snapshot.docs.map((doc) => TodoList.fromMap(doc.data() as Map<String, dynamic>)).toList();
-Future<void> updateListsOrder(List<TodoList> lists) async {
+  // --- LISTER (HENT OG SORTER) ---
+  @override 
+  Future<List<TodoList>> getLists() async {
+    // Henter lister hvor brugeren er medlem
+    final snapshot = await _listsCollection.where('memberIds', arrayContains: _userId).get();
+    
+    final lists = snapshot.docs
+        .map((doc) => TodoList.fromMap(doc.data() as Map<String, dynamic>))
+        .toList();
+     
+    // Vi sorterer manuelt i Dart for at sikre, at 'sortOrder' respekteres.
+    // Hvis sortOrder er ens (f.eks. 0), falder vi tilbage på createdAt.
+    lists.sort((a, b) {
+      int comparison = a.sortOrder.compareTo(b.sortOrder);
+      if (comparison != 0) return comparison;
+      return a.createdAt.compareTo(b.createdAt);
+    });
+    
+    return lists;
+  }
+
+  // --- NY METODE: GEM RÆKKEFØLGE ---
+  Future<void> updateListsOrder(List<TodoList> lists) async {
     final batch = _db.batch();
 
     for (var list in lists) {
@@ -150,14 +165,7 @@ Future<void> updateListsOrder(List<TodoList> lists) async {
 
     await batch.commit();
   }
-     
-    // Vi sorterer manuelt her, da Firestore ikke kan lave "orderBy" på felter der ikke er med i "where" claues 
-    // uden komplekse composite indexes, som kan fejle uden opsætning. 
-    // Dette er sikkert for små/mellemstore mængder data.
-    lists.sort((a, b)=> a.createdAt.compareTo(b.createdAt));
-    return lists;
-    
-  }
+
   @override Future<void> createList(TodoList list) async {
     final members = [...list.memberIds];
     if (!members.contains(_userId)) members.add(_userId);
@@ -166,11 +174,10 @@ Future<void> updateListsOrder(List<TodoList> lists) async {
     await _listsCollection.doc(list.id).set(listData);
   }
 
-  @override
+  // Denne metode var ikke i interfacet, men kan være rar at have
   Future<void> updateList(TodoList list) async {
     await _listsCollection.doc(list.id).update(list.toMap());
   }
-
   
   @override Future<void> inviteUserByEmail(String listId, String email) async {
     final userSnapshot = await _db.collection('users').where('email', isEqualTo: email).limit(1).get();
@@ -181,6 +188,7 @@ Future<void> updateListsOrder(List<TodoList> lists) async {
       await _listsCollection.doc(listId).update({'pendingEmails': FieldValue.arrayUnion([email])});
     }
   }
+
   @override Future<void> checkPendingInvites(String email) async {
     final snapshot = await _listsCollection.where('pendingEmails', arrayContains: email).get();
     for (var doc in snapshot.docs) {
@@ -190,6 +198,7 @@ Future<void> updateListsOrder(List<TodoList> lists) async {
       });
     }
   }
+
   @override Future<void> removeUserFromList(String listId, String userIdToRemove) async {
      final doc = await _listsCollection.doc(listId).get();
      if (!doc.exists) return;
@@ -200,6 +209,8 @@ Future<void> updateListsOrder(List<TodoList> lists) async {
         await _listsCollection.doc(listId).update({'memberIds': FieldValue.arrayRemove([userIdToRemove])});
      } else { throw Exception("Kun ejeren kan fjerne medlemmer"); }
   }
+
+  // --- OPGAVER ---
   @override Future<List<TodoTask>> getTasks(String listId) async {
     final snapshot = await _listsCollection.doc(listId).collection('tasks').get();
     return snapshot.docs.map((doc) => TodoTask.fromMap(doc.data()).copyWith(listId: listId)).toList();
@@ -215,6 +226,8 @@ Future<void> updateListsOrder(List<TodoList> lists) async {
   @override Future<void> deleteTask(String listId, String taskId) async {
     await _listsCollection.doc(listId).collection('tasks').doc(taskId).delete();
   }
+
+  // --- KATEGORIER ---
   @override Future<List<String>> getCategories() async {
     try {
       final doc = await _userDoc.get();
@@ -234,6 +247,8 @@ Future<void> updateListsOrder(List<TodoList> lists) async {
     if (_defaultCategories.contains(category)) return;
     await _userDoc.set({'customCategories': FieldValue.arrayUnion([category])}, SetOptions(merge: true));
   }
+
+  // --- INDSTILLINGER ---
   @override Future<bool> getThemePreference() async {
     final doc = await _userDoc.get();
     if (doc.exists && (doc.data() as Map<String, dynamic>).containsKey('isDarkMode')) {
