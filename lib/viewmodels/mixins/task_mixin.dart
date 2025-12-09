@@ -89,7 +89,7 @@ mixin TaskMixin on BaseViewModel {
       ownerId: currentUser!.uid,
       memberIds: [currentUser!.uid],
       createdAt: DateTime.now(),
-      order: _lists.length, 
+      sortOrder: _lists.length, 
     );
 
     // Optimistic Update
@@ -149,8 +149,8 @@ mixin TaskMixin on BaseViewModel {
     try {
       for (int i = 0; i < _lists.length; i++) {
         final list = _lists[i];
-        if (list.order != i) { // Kun opdater hvis rækkefølgen faktisk er ændret
-          final updatedList = list.copyWith(order: i);
+        if (list.sortOrder != i) { // Kun opdater hvis rækkefølgen faktisk er ændret
+          final updatedList = list.copyWith(sortOrder: i);
           // Vi opdaterer den i hukommelsen så state matcher DB
           _lists[i] = updatedList; 
           await repository.updateList(updatedList);
