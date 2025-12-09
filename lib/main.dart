@@ -209,15 +209,16 @@ class AuthWrapper extends StatelessWidget {
         }
 
         // 3. Has Data = Bruger logget ind
-        if (snapshot.hasData) {
+        if (snapshot.hasData && snapshot.data != null) {
           // Check for at sikre os vi ikke logger ind med en 'null' bruger ved en fejl (selvom hasData burde fange det)
-          if (snapshot.data != null) {
+          
              return const MainScreen();
-          }
+          
         }
-
+        else {
         // 4. Default = Login Skærm
         return const LoginScreen();
+        }
       },
     );
   }

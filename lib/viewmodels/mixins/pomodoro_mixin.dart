@@ -130,7 +130,7 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
   void _scheduleCompletionNotification() {
     if (_timerEndTime == null) return;
     
-    String title = _timerStatus == TimerStatus.working ? "Tiden er gået!" : "Pausen er slut!";
+    String title = _timerStatus == TimerStatus.working ? "Tiden er gået🎉!" : "Pausen er slut!🤗";
     String body = _timerStatus == TimerStatus.working 
         ? "Godt arbejde!🎉 Tag en pause eller fortsæt." 
         : "Klar til at fokusere igen?🦾";
