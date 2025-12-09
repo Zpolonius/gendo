@@ -60,6 +60,7 @@ class NotificationService {
       description: 'Notifikationer når tiden er gået',
       importance: Importance.max,
       playSound: true,
+      sound: RawResourceAndroidNotificationSound('timer_sound'),
     );
 
     // Kanal til Opgaver (Deadlines)
@@ -69,6 +70,7 @@ class NotificationService {
       description: 'Påmindelser om deadlines',
       importance: Importance.high,
       playSound: true,
+      sound: RawResourceAndroidNotificationSound('timer_sound'),
     );
 
     final androidPlugin = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -166,8 +168,17 @@ class NotificationService {
           channelDescription: 'Påmindelser om deadlines',
           importance: Importance.high,
           priority: Priority.high,
+          playSound: true,
+          sound: RawResourceAndroidNotificationSound('timer_sound'),
+          fullScreenIntent: true,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(
+          presentSound: true,
+          presentAlert: true,
+          presentBanner: true,
+          sound: 'timer_sound.wav', // Husk filendelse på iOS
+          interruptionLevel: InterruptionLevel.timeSensitive,
+        ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,

@@ -77,8 +77,9 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
     notifyListeners(); 
   }
   
-  void startTimer() { 
+  void startTimer() async { 
     if (_timer != null) return; 
+    await _notificationService.requestPermissions();
     
     // Sæt status hvis vi starter fra idle
     if (_timerStatus == TimerStatus.idle) _timerStatus = TimerStatus.working; 
