@@ -125,7 +125,66 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
       }
     );
   }
+void _handleTaskCompletion(AppViewModel vm) async {
+    final task = vm.selectedTaskObj;
+    
+    if (task == null) return;
+    _confettiController.play();
+    // Tjek om der er steps
+    bool hasSteps = task.steps.isNotEmpty;
 
+    if (hasSteps) {
+      // Hvis der er steps, vis SessionCompletionDialog først
+      // Denne widget styrer selv at gemme steps når man trykker "Gem/Luk"
+      await showDialog(
+        context: context,
+        builder: (ctx) => SessionCompletionDialog(
+          task: task,
+          onSave: (updatedTask) {
+             vm.updateTaskDetails(updatedTask); 
+          }, vm: vm
+        ),
+      );
+    }
+
+    // Når dialogen er lukket (eller hvis der ingen steps var), spørg om næste træk
+    if (mounted) {
+      _showNextMoveDialog(context, vm);
+    }
+  }
+
+  // 2. Dialogen der spørger: Pause eller Ny Opgave?
+  void _showNextMoveDialog(BuildContext context, AppViewModel vm) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Opgave fuldført!"),
+        content: const Text(
+          "Godt arbejde! Du har stadig tid tilbage på uret.\n\nVil du fortsætte fokus på en ny opgave, eller tage en pause nu?",
+        ),
+        actions: [
+          // MULIGHED A: GÅ TIL PAUSE
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              vm.completeWorkSession(true); // Afslutter og går til pause
+            },
+            child: const Text("Hold pause"),
+          ),
+          
+          // MULIGHED B: FORTSÆT MED NY OPGAVE
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              vm.completeTaskEarly(); // Markerer færdig, fjerner valg, lader ur køre
+            },
+            child: const Text("Vælg ny opgave"),
+          ),
+        ],
+      ),
+    );
+  }
   void _showCompletionDialog(BuildContext context, AppViewModel vm, {bool isManualTrigger = false}) {
     final breaksEnabled = vm.pomodoroSettings.enableBreaks;
     showDialog(
@@ -333,7 +392,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
                       FloatingActionButton(
                         heroTag: 'task_complete',
                         onPressed: ()  {
-                          _showCompletionDialog(context, vm, isManualTrigger: true);
+                         _handleTaskCompletion(vm);
                         },
                         backgroundColor: Colors.green, 
                         elevation: 2,

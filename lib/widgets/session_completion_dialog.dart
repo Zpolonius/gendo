@@ -4,9 +4,11 @@ import 'package:confetti/confetti.dart';
 import '../viewmodels/app_view_model.dart';
 
 class SessionCompletionDialog extends StatefulWidget {
+  final TodoTask task;
+  final Function(TodoTask) onSave;
   final AppViewModel vm;
 
-  const SessionCompletionDialog({super.key, required this.vm});
+  const SessionCompletionDialog({super.key, required this.vm, required this.task, required this.onSave});
 
   @override
   State<SessionCompletionDialog> createState() => _SessionCompletionDialogState();
