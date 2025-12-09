@@ -5,7 +5,7 @@ class TodoList {
   final List<String> memberIds;
   final List<String> pendingEmails;
   final DateTime createdAt;
-  final int order; // NYT FELT: Til sortering
+  final int sortOrder; // NYT FELT: Til sortering
 
   TodoList({
     required this.id,
@@ -14,7 +14,7 @@ class TodoList {
     required this.memberIds,
     this.pendingEmails = const [],
     required this.createdAt,
-    this.order = 0, // Default værdi
+    this.sortOrder = 0, // Default værdi
   });
 
   TodoList copyWith({
@@ -24,7 +24,7 @@ class TodoList {
     List<String>? memberIds,
     List<String>? pendingEmails,
     DateTime? createdAt,
-    int? order,
+    int? sortOrder,
   }) {
     return TodoList(
       id: id ?? this.id,
@@ -33,7 +33,7 @@ class TodoList {
       memberIds: memberIds ?? this.memberIds,
       pendingEmails: pendingEmails ?? this.pendingEmails,
       createdAt: createdAt ?? this.createdAt,
-      order: order ?? this.order,
+      sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 
@@ -45,7 +45,7 @@ class TodoList {
       'memberIds': memberIds,
       'pendingEmails': pendingEmails, 
       'createdAt': createdAt.millisecondsSinceEpoch,
-      'order': order,
+      'sortOrder': sortOrder,
     };
   }
 
@@ -57,7 +57,7 @@ class TodoList {
       memberIds: List<String>.from(map['memberIds'] ?? []),
       pendingEmails: List<String>.from(map['pendingEmails'] ?? []), 
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
-      order: map['order'] ?? 0,
+      sortOrder: map['sortOrder'] ?? 0,
     );
   }
 }
