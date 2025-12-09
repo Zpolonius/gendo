@@ -14,6 +14,7 @@ import 'services/firestore_service.dart';
 import 'services/notification_service.dart'; 
 import 'screens/login_screen.dart';
 import 'widgets/app_drawer.dart'; 
+import 'firebase_options.dart';
 
 import 'screens/pomodoro_screen.dart';
 import 'screens/todo_list_screen.dart';
@@ -26,7 +27,8 @@ void main() async {
   try {
     // Hvis du har genereret firebase options:
     // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    await Firebase.initializeApp(); 
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform); 
+    debugPrint("✅ Firebase Initialized");
   } catch (e) {
     debugPrint("Firebase init error: $e");
   }
@@ -55,7 +57,8 @@ class GenDoApp extends StatelessWidget {
         // 3. User Stream - FIX: initialData forhindrer flash af login-skærm
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().user,
-          initialData: FirebaseAuth.instance.currentUser, 
+          initialData: null, 
+          catchError: (_, __) => null,
         ),
 
         // 4. AppViewModel - Forbinder User og Repository
@@ -63,7 +66,7 @@ class GenDoApp extends StatelessWidget {
           create: (_) => AppViewModel(
             MockTaskRepository(), 
             notificationService,
-            user: FirebaseAuth.instance.currentUser
+            user: null  
           ),
           update: (_, user, viewModel) {
             // Hvis viewModel ikke findes endnu, opret den
@@ -182,38 +185,43 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Vi henter AuthService uden at lytte (listen: false), da StreamBuilder står for lytningen
     final authService = Provider.of<AuthService>(context, listen: false);
 
     return StreamBuilder<User?>(
       stream: authService.user,
       builder: (context, snapshot) {
-        // 1. LOADING STATE:
-        // Hvis forbindelsen venter, betyder det, at Firebase er ved at tjekke persistence/disk.
-        // Vis en ladeskærm i stedet for LoginScreen for at undgå "blinket".
+        
+        // 1. ConnectionState.waiting:
+        // Auth systemet undersøger om brugeren er logget ind (læser fra disk).
+        // Dette forhindrer at vi viser LoginScreen for tidligt.
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
-              child: CircularProgressIndicator(), 
-              // Eller brug dit logo: Image.asset('assets/gendo_logo.png', width: 100),
+              child: CircularProgressIndicator(),
             ),
           );
         }
 
-        // 2. LOGGED IN:
-        // Hvis streamen har data (en bruger), viser vi hovedskærmen.
-        if (snapshot.hasData) {
-          return const MainScreen();
+        // 2. Error handling (Good practice)
+        if (snapshot.hasError) {
+          debugPrint("Auth Error: ${snapshot.error}");
+          return const Center(child: Text("Der opstod en fejl med login systemet."));
         }
 
-        // 3. LOGGED OUT:
-        // Kun hvis Firebase er færdig med at tjekke OG der ingen bruger er, viser vi login.
+        // 3. Has Data = Bruger logget ind
+        if (snapshot.hasData) {
+          // Check for at sikre os vi ikke logger ind med en 'null' bruger ved en fejl (selvom hasData burde fange det)
+          if (snapshot.data != null) {
+             return const MainScreen();
+          }
+        }
+
+        // 4. Default = Login Skærm
         return const LoginScreen();
       },
     );
   }
 }
-
 // ... Din MainScreen kode forbliver uændret ...
 // Jeg antager du har MainScreen defineret længere nede i filen eller importeret
 class MainScreen extends StatefulWidget {
