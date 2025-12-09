@@ -1,6 +1,6 @@
 # gendo
 
-A new Flutter project.
+The To Do app made with AI.
 
 ## Getting Started
 
