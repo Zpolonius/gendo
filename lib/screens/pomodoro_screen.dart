@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:confetti/confetti.dart';
 
+import '../widgets/session_completion_dialog.dart'; 
 import '../viewmodel.dart';
 import '../services/notification_service.dart'; 
 import '../viewmodels/app_view_model.dart';
@@ -126,52 +127,23 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
   }
 
   void _showCompletionDialog(BuildContext context, AppViewModel vm) {
-    setState(() => _isDialogShowing = true);
-    final breaksEnabled = vm.pomodoroSettings.enableBreaks;
+    if (_isDialogShowing) return;
     
-    showDialog(
+    setState(() => _isDialogShowing = true);
+    
+    showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Godt gået!"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Tiden er gået."),
-            const SizedBox(height: 10),
-            if (vm.selectedTaskId != null)
-              Text("Blev du færdig med '${vm.selectedTaskObj?.title}'?", style: const TextStyle(fontWeight: FontWeight.bold)),
-            if (vm.selectedTaskId == null && breaksEnabled)
-               const Text("Er du klar til en pause?"),
-            if (vm.selectedTaskId == null && !breaksEnabled)
-               const Text("Klar til næste session?"),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              vm.completeWorkSession(false);
-            },
-            child: const Text("Nej"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              if (vm.selectedTaskId != null){
-                _confettiController.play();
-              }
-              vm.completeWorkSession(true);
-            },
-            child: const Text("Ja, videre!"),
-          ),
-        ],
-      ),
-    ).then((_) {
-      if (mounted) setState(() => _isDialogShowing = false);
+      builder: (ctx) => SessionCompletionDialog(vm: vm),
+    ).then((isTaskDone) {
+      if (mounted) {
+        setState(() => _isDialogShowing = false);
+        // Håndter resultatet fra dialogen
+        // Hvis null (klik udenfor/tilbage), antag false
+        vm.completeWorkSession(isTaskDone ?? false);
+      }
     });
   }
-
   // Genbruges hvis man afslutter manuelt
   void _showNextTaskSelector(BuildContext context, AppViewModel vm) {
      // Vi kan genbruge _showTaskPicker logikken eller lave en specifik "hvad nu" dialog.
