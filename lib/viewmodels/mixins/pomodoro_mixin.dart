@@ -132,8 +132,8 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
     
     String title = _timerStatus == TimerStatus.working ? "Tiden er gået!" : "Pausen er slut!";
     String body = _timerStatus == TimerStatus.working 
-        ? "Godt arbejde! Tag en pause eller fortsæt." 
-        : "Klar til at fokusere igen?";
+        ? "Godt arbejde!🎉 Tag en pause eller fortsæt." 
+        : "Klar til at fokusere igen?🦾";
 
     if (_selectedTaskId != null && _timerStatus == TimerStatus.working) {
       final task = selectedTaskObj;

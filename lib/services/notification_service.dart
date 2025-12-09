@@ -119,14 +119,20 @@ class NotificationService {
           priority: Priority.high,
           ticker: 'ticker',
           playSound: true,
+          sound: RawResourceAndroidNotificationSound('timer_sound'),
+          fullScreenIntent: true,
         ),
+        
         iOS: DarwinNotificationDetails(
           presentSound: true,
           presentAlert: true,
           presentBanner: true,
+          sound: 'timer_sound.wav', // Husk filendelse på iOS
+          interruptionLevel: InterruptionLevel.timeSensitive,
         ),
       ),
       payload: 'timer_complete',
+      
     );
   }
 
@@ -211,6 +217,7 @@ class NotificationService {
           importance: Importance.max,
           priority: Priority.high,
           playSound: true,
+          sound: RawResourceAndroidNotificationSound('timer_sound'),
           // onGoing: true, // Kan overvejes, hvis den skal blive liggende
         ),
         iOS: DarwinNotificationDetails(
