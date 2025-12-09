@@ -48,7 +48,19 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
   }
 
   // --- INITIALIZERS ---
-
+// NY METODE: Afslut opgave men fortsæt timer
+  Future<void> completeTaskEarly() async {
+    if (_selectedTaskId != null) {
+      // 1. Markér opgaven som færdig i databasen/listen
+      await toggleTask(_selectedTaskId!);
+      
+      // 2. Fjern opgaven fra fokus, så timeren fortsætter i "Frit fokus"
+      _selectedTaskId = null;
+      
+      // 3. Opdater UI
+      notifyListeners();
+    }
+  }
   Future<void> loadPomodoroData() async {
     try {
       _pomodoroSettings = await repository.getPomodoroSettings();
