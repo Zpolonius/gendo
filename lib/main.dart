@@ -18,6 +18,7 @@ import 'firebase_options.dart';
 
 import 'screens/pomodoro_screen.dart';
 import 'screens/todo_list_screen.dart';
+import 'screens/prompt_library/prompt_library_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -248,6 +249,7 @@ class _MainScreenState extends State<MainScreen> {
 
     final List<Widget> screens = [
       const PomodoroScreen(),
+      const PromptLibraryScreen(),
       TodoListScreen(onSwitchTab: _switchTab),
     ];
 
@@ -282,6 +284,7 @@ class _MainScreenState extends State<MainScreen> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Fokus'),
           NavigationDestination(icon: Icon(Icons.check_circle_outline), selectedIcon: Icon(Icons.check_circle), label: 'Opgaver'),
+          NavigationDestination(icon: Icon(Icons.lightbulb_circle_outlined), selectedIcon: Icon(Icons.lightbulb_circle), label: 'Prompt'),
         ],
       ),
     );

@@ -208,7 +208,7 @@ void _handleTaskCompletion(AppViewModel vm) async {
            _showNextTaskSelector(context, vm);
         
         // 1. Gem resultatet (om opgaven blev færdig)
-        final wasTaskCompleted = isTaskDone ?? false;
+        final wasTaskCompleted = isTaskDone;
 
         // 2. Afslut sessionen i ViewModel
         // (Dette rydder 'selectedTaskId' hvis opgaven er færdig, og starter evt. pause)
@@ -261,7 +261,7 @@ void _handleTaskCompletion(AppViewModel vm) async {
                  Container(
                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                    decoration: BoxDecoration(
-                     color: Colors.green.withOpacity(0.1),
+                     color: Colors.green,
                      borderRadius: BorderRadius.circular(20),
                    ),
                    child: Text(statusText, style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, letterSpacing: 1.5)),

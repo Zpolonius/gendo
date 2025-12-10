@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 import '../models/user_profile.dart';
-import '../widgets/session_completion_dialog.dart';
+
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});

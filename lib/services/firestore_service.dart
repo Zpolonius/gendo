@@ -175,6 +175,7 @@ class FirestoreService implements TaskRepository {
   }
 
   // Denne metode var ikke i interfacet, men kan være rar at have
+  @override
   Future<void> updateList(TodoList list) async {
     await _listsCollection.doc(list.id).update(list.toMap());
   }

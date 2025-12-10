@@ -5,13 +5,14 @@ import 'base_view_model.dart';
 import 'mixins/theme_mixin.dart';
 import 'mixins/task_mixin.dart';
 import 'mixins/pomodoro_mixin.dart';
+import 'mixins/prompt_mixin.dart';
 
 // Exports til resten af appen
 export 'mixins/pomodoro_mixin.dart' show TimerStatus;
 export '../models.dart';
 export '../models/todo_list.dart';
 
-class AppViewModel extends BaseViewModel with ThemeMixin, TaskMixin, PomodoroMixin {
+class AppViewModel extends BaseViewModel with PromptMixin, ThemeMixin, TaskMixin, PomodoroMixin {
   
   // Constructor: Tager nu User? med som valgfri parameter
   AppViewModel(
@@ -32,7 +33,10 @@ class AppViewModel extends BaseViewModel with ThemeMixin, TaskMixin, PomodoroMix
 
   Future<void> loadData() async {
     setLoading(true);
-    try {
+    try { 
+       if (currentUser != null) {
+        initPromptService(); // <-- Fra PromptMixin
+      }
       await Future.wait([
         loadTaskData(),    // Fra TaskMixin
         loadThemeData(),   // Fra ThemeMixin
