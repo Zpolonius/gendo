@@ -180,9 +180,9 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
       return; 
     }
     
-    int breakMinutes = 10; 
+    int breakMinutes = 5; 
     if (_pomodoroSettings.enableLongBreaks && _sessionsCompleted % 3 == 0) {
-      breakMinutes = 30; 
+      breakMinutes = 15; 
     }
     
     startBreak(breakMinutes); 
