@@ -249,8 +249,8 @@ class _MainScreenState extends State<MainScreen> {
 
     final List<Widget> screens = [
       const PomodoroScreen(),
-      const PromptLibraryScreen(),
       TodoListScreen(onSwitchTab: _switchTab),
+      const PromptLibraryScreen(),
     ];
 
     return Scaffold(
@@ -285,6 +285,8 @@ class _MainScreenState extends State<MainScreen> {
           NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Fokus'),
           NavigationDestination(icon: Icon(Icons.check_circle_outline), selectedIcon: Icon(Icons.check_circle), label: 'Opgaver'),
           NavigationDestination(icon: Icon(Icons.lightbulb_circle_outlined), selectedIcon: Icon(Icons.lightbulb_circle), label: 'Prompt'),
+         
+          
         ],
       ),
     );
