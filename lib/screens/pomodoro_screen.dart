@@ -192,14 +192,20 @@ void _handleTaskCompletion(AppViewModel vm) async {
     
     setState(() => _isDialogShowing = true);
     
-    showDialog<bool>(
+    showDialog<SessionDialogResult>(
       context: context,
       barrierDismissible: false,
       // Her bruger vi din nye, smarte widget i stedet for standard AlertDialog
       builder: (ctx) => SessionCompletionDialog(vm: vm),
-    ).then((isTaskDone) {
+    ).then((result) {
       if (mounted) {
         setState(() => _isDialogShowing = false);
+        final bool isTaskDone = result?.isTaskDone ?? false;
+        final bool startBreak = result?.startBreak ?? false;
+        vm.completeWorkSessionWithChoice(isTaskDone: isTaskDone, startBreak: startBreak);
+
+        if (isTaskDone && !startBreak) {
+           _showNextTaskSelector(context, vm);
         
         // 1. Gem resultatet (om opgaven blev færdig)
         final wasTaskCompleted = isTaskDone ?? false;
@@ -215,7 +221,7 @@ void _handleTaskCompletion(AppViewModel vm) async {
            _showNextTaskSelector(context, vm); 
         }
       }
-    });
+    }});
   }
   // Genbruges hvis man afslutter manuelt
   void _showNextTaskSelector(BuildContext context, AppViewModel vm) {

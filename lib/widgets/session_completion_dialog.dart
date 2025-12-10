@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
-import '../models.dart'; // Sikrer adgang til TodoTask copyWith
+
 import '../viewmodels/app_view_model.dart';
 
+class SessionDialogResult {
+  final bool isTaskDone;
+  final bool startBreak;
+
+  SessionDialogResult({required this.isTaskDone, required this.startBreak});
+}
 class SessionCompletionDialog extends StatefulWidget {
-  
   final AppViewModel vm;
 
-  const SessionCompletionDialog({super.key, required this.vm,});
+  const SessionCompletionDialog({super.key, required this.vm});
 
   @override
   State<SessionCompletionDialog> createState() => _SessionCompletionDialogState();
@@ -76,7 +81,7 @@ class _SessionCompletionDialogState extends State<SessionCompletionDialog> {
 
     if (hasSteps) {
       // Hvis vi har steps, styres status 100% af om alle steps er done
-      isTaskDone = task!.steps.every((s) => s.isCompleted);
+      isTaskDone = task.steps.every((s) => s.isCompleted);
     }
 
     // SCENARIE 1: Ingen valgt opgave
@@ -207,19 +212,27 @@ class _SessionCompletionDialogState extends State<SessionCompletionDialog> {
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, isTaskDone);
-              },
-              child: const Text("Luk"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, isTaskDone);
-              },
-              child: const Text("Videre"),
-            ),
-          ],
+                  TextButton(
+                    onPressed: () {
+                      // Returner et SessionDialogResult objekt
+                      Navigator.pop(
+                        context, 
+                        SessionDialogResult(isTaskDone: isTaskDone, startBreak: false)
+                      );
+                    },
+                    child: const Text("Forsæt"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Returner et SessionDialogResult objekt
+                      Navigator.pop(
+                        context, 
+                        SessionDialogResult(isTaskDone: isTaskDone, startBreak: true)
+                      );
+                    },
+                    child: const Text("Pause"),
+                  ),
+                ],
         ),
         
         Padding(

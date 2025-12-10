@@ -202,7 +202,35 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
   void skipBreak() { 
     resetTimer(); 
   }
-  
+  void completeWorkSessionWithChoice({required bool isTaskDone, required startBreak}) {
+    // 1. Håndter opgaven
+    if (isTaskDone && _selectedTaskId != null) {
+       // Sikr dig at vi ikke toggler den tilbage til "ikke færdig", hvis den allerede er færdig
+       // Men her antager vi at isTaskDone er den ØNSKEDE slut-status.
+       // Da dialogen allerede har opdateret steps/task via optimistic updates, 
+       // skal vi måske bare rydde selectionen her.
+       
+       // Hvis opgaven er færdig, fjerner vi den fra "Active Task" i timeren
+       _selectedTaskId = null; 
+    }
+    
+    _sessionsCompleted++;
+    
+    // 2. Håndter Pausevalg
+    if (startBreak) {
+      // Beregn pausetid
+      int breakMinutes = 5; 
+      if (_pomodoroSettings.enableLongBreaks && _sessionsCompleted % 3 == 0) {
+        breakMinutes = 15;
+      }
+      startBreak(breakMinutes); // Omdøb evt. til din interne metode 'startBreak(minutes)'
+    } else {
+      // Ingen pause -> Nulstil timer til ny arbejds-session
+      resetTimer(); 
+    }
+    
+    notifyListeners();
+  }
   void updateSettings(PomodoroSettings newSettings) async { 
     _pomodoroSettings = newSettings; 
     await repository.updatePomodoroSettings(newSettings); 
