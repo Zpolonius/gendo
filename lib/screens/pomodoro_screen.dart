@@ -138,13 +138,14 @@ void _handleTaskCompletion(AppViewModel vm) async {
       // Denne widget styrer selv at gemme steps når man trykker "Gem/Luk"
       await showDialog(
         context: context,
-        builder: (ctx) => SessionCompletionDialog(
-          task: task,
-          onSave: (updatedTask) {
-             vm.updateTaskDetails(updatedTask); 
-          }, vm: vm
-        ),
-      );
+       builder: (ctx) => SessionCompletionDialog(vm: vm),
+    ).then((isTaskDone) {
+      if (mounted) {
+        setState(() => _isDialogShowing = false);
+        vm.completeWorkSession(isTaskDone ?? false);
+      }
+    });
+      
     }
 
     // Når dialogen er lukket (eller hvis der ingen steps var), spørg om næste træk
@@ -185,63 +186,35 @@ void _handleTaskCompletion(AppViewModel vm) async {
       ),
     );
   }
-  void _showCompletionDialog(BuildContext context, AppViewModel vm, {bool isManualTrigger = false}) {
-    final breaksEnabled = vm.pomodoroSettings.enableBreaks;
-    showDialog(
+  void _showCompletionDialog(BuildContext context, AppViewModel vm) {
+    // Forhindrer at vi åbner flere dialoger ovenpå hinanden
+    if (_isDialogShowing) return;
+    
+    setState(() => _isDialogShowing = true);
+    
+    showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Godt gået!"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Vis kun "Tiden er gået" hvis det ikke er manuelt triggeret
-            if (!isManualTrigger)
-              const Text("Tiden er gået."),
-            
-            const SizedBox(height: 10),
-            
-            if (vm.selectedTaskId != null)
-              Text("Blev du færdig med '${vm.selectedTaskObj?.title}'?", style: const TextStyle(fontWeight: FontWeight.bold)),
-            
-            const SizedBox(height: 20),
-            
-            if (breaksEnabled)
-               const Text("Vil du starte pausen nu?"),
-            if (!breaksEnabled)
-               const Text("Klar til næste session?"),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              // Hvis det var manuelt, og man siger "Nej" til pausen, fortsætter man bare (men opgaven markeres færdig)
-              // Her antager vi dog "Nej" knappen i denne kontekst betyder "Nej, jeg er ikke færdig" eller "Luk dialog"
-              // Men for at matche "Samme muligheder":
-              
-              if (isManualTrigger) {
-                 // Brugeren vil IKKE starte pause, men har markeret opgaven som færdig via knappen.
-                 // Vi skal markere opgaven som færdig, men lade timeren køre.
-                 vm.completeTaskEarly(); 
-              } else {
-                 vm.completeWorkSession(false); // Tiden er gået, men opgaven ikke færdig
-              }
-            },
-            child: Text(isManualTrigger ? "Fortsæt fokus" : "Nej"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              // "Ja, videre" -> Marker færdig og start pause
-              vm.completeWorkSession(true);
-            },
-            child: const Text("Ja, start pause!"),
-          ),
-        ],
-      ),
-    ).then((_) {
-      if (mounted) setState(() => _isDialogShowing = false);
+      // Her bruger vi din nye, smarte widget i stedet for standard AlertDialog
+      builder: (ctx) => SessionCompletionDialog(vm: vm),
+    ).then((isTaskDone) {
+      if (mounted) {
+        setState(() => _isDialogShowing = false);
+        
+        // 1. Gem resultatet (om opgaven blev færdig)
+        final wasTaskCompleted = isTaskDone ?? false;
+
+        // 2. Afslut sessionen i ViewModel
+        // (Dette rydder 'selectedTaskId' hvis opgaven er færdig, og starter evt. pause)
+        vm.completeWorkSession(wasTaskCompleted);
+
+        // 3. LOGIK: Hvis opgaven er færdig, OG brugeren IKKE er sendt på pause
+        // (dvs. de er klar til at arbejde videre med det samme), så bed dem vælge ny opgave.
+        if (wasTaskCompleted && !vm.isOnBreak) {
+           // Denne kalder din eksisterende vælger, så flowet fortsætter glidende
+           _showNextTaskSelector(context, vm); 
+        }
+      }
     });
   }
   // Genbruges hvis man afslutter manuelt
@@ -393,6 +366,7 @@ void _handleTaskCompletion(AppViewModel vm) async {
                         heroTag: 'task_complete',
                         onPressed: ()  {
                          _handleTaskCompletion(vm);
+                         
                         },
                         backgroundColor: Colors.green, 
                         elevation: 2,
