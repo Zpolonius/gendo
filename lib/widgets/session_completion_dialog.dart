@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:confetti/confetti.dart';
+import '../models.dart'; // Sikrer adgang til TodoTask copyWith
 import '../viewmodels/app_view_model.dart';
 
 class SessionCompletionDialog extends StatefulWidget {
-  final TodoTask task;
-  final Function(TodoTask) onSave;
   final AppViewModel vm;
 
-  const SessionCompletionDialog({super.key, required this.vm, required this.task, required this.onSave});
+  const SessionCompletionDialog({super.key, required this.vm});
 
   @override
   State<SessionCompletionDialog> createState() => _SessionCompletionDialogState();
@@ -17,16 +15,17 @@ class SessionCompletionDialog extends StatefulWidget {
 class _SessionCompletionDialogState extends State<SessionCompletionDialog> {
   late ConfettiController _confettiController;
   final TextEditingController _stepController = TextEditingController();
-  bool _isTaskCompletedLocally = false;
+  
+  // Bruges kun til opgaver UDEN steps
+  bool _manualCompletionStatus = false;
 
   @override
   void initState() {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 2));
     
-    // Tjek om opgaven allerede var markeret som færdig
     if (widget.vm.selectedTaskObj != null) {
-      _isTaskCompletedLocally = widget.vm.selectedTaskObj!.isCompleted;
+      _manualCompletionStatus = widget.vm.selectedTaskObj!.isCompleted;
     }
   }
 
@@ -41,13 +40,45 @@ class _SessionCompletionDialogState extends State<SessionCompletionDialog> {
     _confettiController.play();
   }
 
+  /// Håndterer "Vælg alle" funktionalitet
+  void _toggleAllSteps(bool makeAllCompleted, TodoTask task) {
+    // 1. Opret opdaterede steps
+    final updatedSteps = task.steps.map((step) {
+      return step.copyWith(isCompleted: makeAllCompleted);
+    }).toList();
+
+    // 2. Opret opdateret task objekt
+    final updatedTask = task.copyWith(
+      isCompleted: makeAllCompleted,
+      steps: updatedSteps
+    );
+
+    // 3. Send én samlet opdatering til ViewModel (Optimistic Update sker automatisk i VM)
+    widget.vm.updateTaskDetails(updatedTask);
+
+    // 4. Feedback
+    if (makeAllCompleted) {
+      _triggerConfetti();
+    }
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final task = widget.vm.selectedTaskObj;
     final breaksEnabled = widget.vm.pomodoroSettings.enableBreaks;
 
-    // SCENARIE 1: Ingen valgt opgave (Simpel dialog)
+    // Logik: Er opgaven færdig?
+    bool isTaskDone = _manualCompletionStatus;
+    bool hasSteps = task != null && task.steps.isNotEmpty;
+
+    if (hasSteps) {
+      // Hvis vi har steps, styres status 100% af om alle steps er done
+      isTaskDone = task!.steps.every((s) => s.isCompleted);
+    }
+
+    // SCENARIE 1: Ingen valgt opgave
     if (task == null) {
       return AlertDialog(
         title: const Text("Godt arbejde!"),
@@ -57,22 +88,18 @@ class _SessionCompletionDialogState extends State<SessionCompletionDialog> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context, false); // Returner false (ikke færdig/luk)
-            },
+            onPressed: () => Navigator.pop(context, false),
             child: const Text("Luk"),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context, true); // Returner true (videre)
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text("Ja, videre"),
           ),
         ],
       );
     }
 
-    // SCENARIE 2: Opgave valgt (Vis steps og muligheder)
+    // SCENARIE 2: Opgave valgt
     return Stack(
       alignment: Alignment.topCenter,
       children: [
@@ -87,7 +114,7 @@ class _SessionCompletionDialogState extends State<SessionCompletionDialog> {
               const SizedBox(height: 10),
 
               // --- STEPS LISTE ---
-              if (task.steps.isEmpty)
+              if (!hasSteps)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8.0),
                   child: Text("Ingen delopgaver. Tilføj en nedenfor, hvis du vil logge fremskridt.", 
@@ -107,13 +134,11 @@ class _SessionCompletionDialogState extends State<SessionCompletionDialog> {
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                   onChanged: (val) async {
-                    // Optimistic update via ViewModel
-                    final allStepsDone = await widget.vm.toggleTaskStep(task.id, step.id);
-                    if (allStepsDone || (val == true)) {
-                       // Lille konfetti hvis man afslutter et step (valgfrit: kun ved alle steps)
+                    final allStepsNowDone = await widget.vm.toggleTaskStep(task.id, step.id);
+                    if (allStepsNowDone) {
                        _triggerConfetti();
                     }
-                    setState(() {}); // Opdater UI
+                    setState(() {});
                   },
                 )),
 
@@ -148,23 +173,32 @@ class _SessionCompletionDialogState extends State<SessionCompletionDialog> {
               
               const SizedBox(height: 20),
               
-              // --- COMPLETE TASK CHECKBOX ---
+              // --- COMPLETE TASK CHECKBOX (NU MED "VÆLG ALLE" LOGIK) ---
               Container(
                 decoration: BoxDecoration(
-                  color: _isTaskCompletedLocally ? Colors.green.withOpacity(0.1) : theme.colorScheme.surfaceContainerHighest,
+                  color: isTaskDone ? Colors.green.withOpacity(0.1) : theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
-                  border: _isTaskCompletedLocally ? Border.all(color: Colors.green) : null,
+                  border: isTaskDone ? Border.all(color: Colors.green) : null,
                 ),
                 child: CheckboxListTile(
                   title: const Text("Hele opgaven er færdig!", style: TextStyle(fontWeight: FontWeight.bold)),
-                  value: _isTaskCompletedLocally,
+                  subtitle: hasSteps 
+                    ? const Text("Markerer alle delopgaver som udført", style: TextStyle(fontSize: 10, color: Colors.grey)) 
+                    : null,
+                  value: isTaskDone,
                   activeColor: Colors.green,
                   onChanged: (val) {
-                    setState(() {
-                      _isTaskCompletedLocally = val ?? false;
-                    });
-                    if (_isTaskCompletedLocally) {
-                      _triggerConfetti();
+                    bool newValue = val ?? false;
+                    
+                    if (hasSteps) {
+                      // 1. Bulk update af alle steps
+                      _toggleAllSteps(newValue, task);
+                    } else {
+                      // 2. Manuel update (hvis ingen steps)
+                      setState(() {
+                        _manualCompletionStatus = newValue;
+                      });
+                      if (newValue) _triggerConfetti();
                     }
                   },
                 ),
@@ -174,24 +208,21 @@ class _SessionCompletionDialogState extends State<SessionCompletionDialog> {
           actions: [
             TextButton(
               onPressed: () {
-                // Brugeren er færdig med sessionen, men måske ikke opgaven
-                Navigator.pop(context, _isTaskCompletedLocally);
+                Navigator.pop(context, isTaskDone);
               },
               child: const Text("Luk"),
             ),
             ElevatedButton(
               onPressed: () {
-                // Bekræft valg og gå til pause/næste
-                Navigator.pop(context, _isTaskCompletedLocally);
+                Navigator.pop(context, isTaskDone);
               },
               child: const Text("Videre"),
             ),
           ],
         ),
         
-        // --- CONFETTI OVERLAY ---
         Padding(
-          padding: const EdgeInsets.only(top: 20), // Juster så den ikke dækker titlen helt
+          padding: const EdgeInsets.only(top: 20),
           child: ConfettiWidget(
             confettiController: _confettiController,
             blastDirectionality: BlastDirectionality.explosive,
