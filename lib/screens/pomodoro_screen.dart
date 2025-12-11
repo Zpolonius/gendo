@@ -125,31 +125,32 @@ class _PomodoroScreenState extends State<PomodoroScreen> {
       }
     );
   }
-void _handleTaskCompletion(AppViewModel vm) async {
-    final task = vm.selectedTaskObj;
-    
-    if (task == null) return;
-    _confettiController.play();
-    // Tjek om der er steps
-    bool hasSteps = task.steps.isNotEmpty;
 
-    if (hasSteps) {
+  void _handleTaskCompletion(AppViewModel vm) async {
+    final task = vm.selectedTaskObj;
+    if (task == null) return;
+
+    bool isTaskDone = true; 
+
+    if (task.steps.isNotEmpty) {
       // Hvis der er steps, vis SessionCompletionDialog først
-      // Denne widget styrer selv at gemme steps når man trykker "Gem/Luk"
-      await showDialog(
+      final result = await showDialog<bool>(
         context: context,
-       builder: (ctx) => SessionCompletionDialog(vm: vm),
-    ).then((isTaskDone) {
-      if (mounted) {
-        setState(() => _isDialogShowing = false);
-        vm.completeWorkSession(isTaskDone ?? false);
-      }
-    });
+        builder: (ctx) => SessionCompletionDialog(vm: vm),
+      );
       
+      if (mounted) setState(() => _isDialogShowing = false);
+      
+      isTaskDone = result ?? false;
+
+      // Hvis brugeren har afbrudt (ikke færdig), stop her
+      if (!isTaskDone) return;
+    } else {
+      _confettiController.play();
     }
 
-    // Når dialogen er lukket (eller hvis der ingen steps var), spørg om næste træk
-    if (mounted) {
+    if (isTaskDone && mounted) {
+       if (task.steps.isNotEmpty) _confettiController.play();
       _showNextMoveDialog(context, vm);
     }
   }
