@@ -1,47 +1,66 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import '../../models/prompt_model.dart';
-import '../../models.dart'; // TodoTask
+import '../../models.dart';
 import '../../services/prompt_service.dart';
-import '../base_view_model.dart'; // Vigtigt: Importér din base
+import '../base_view_model.dart'; 
 
-/// Mixin der håndterer al logik vedrørende Prompts.
-/// 'on BaseViewModel' giver os adgang til user, isLoading osv.
 mixin PromptMixin on BaseViewModel {
-  
-  // --- KONTRAKT ---
-  // Disse metoder forventer vi findes i AppViewModel (fra TaskMixin)
-  // Ved at definere dem her, fjerner vi de røde streger.
+  // Kontrakt
   String? get activeListId;
   Future<String> addTask(String title, {String description = '', String category = 'Generelt', String? listId});
   Future<void> updateTaskDetails(TodoTask task);
 
-  // --- PROMPT STATE ---
   FirestorePromptService? _promptRepository;
-  
-  // Init kaldes fra AppViewModel's loadData
+
   void initPromptService() {
     if (currentUser != null) {
       _promptRepository = FirestorePromptService(currentUser!.uid);
+      print("PromptService initialiseret for bruger: ${currentUser!.uid}");
+    } else {
+      print("Advarsel: Forsøgte initPromptService, men ingen bruger fundet.");
     }
   }
 
   Stream<List<PromptModel>> get promptsStream {
-    if (_promptRepository == null) return const Stream.empty();
+    // Sikkerhedscheck: Prøv at init hvis den er null men vi har en bruger
+    if (_promptRepository == null && currentUser != null) {
+      initPromptService();
+    }
+    
+    if (_promptRepository == null) {
+      return const Stream.empty();
+    }
     return _promptRepository!.getPromptsStream();
   }
 
-  // --- LOGIK: Opret opgave fra Prompt ---
+  // --- SAFE WRAPPERS ---
+  
+  Future<void> addPrompt(PromptModel prompt) async {
+    // LØSNING PÅ "INTET SKER":
+    if (_promptRepository == null) {
+      initPromptService();
+      if (_promptRepository == null) {
+        throw Exception("Du skal være logget ind for at gemme prompts.");
+      }
+    }
+    await _promptRepository!.addPrompt(prompt);
+  }
+
+  Future<void> updatePrompt(PromptModel prompt) async {
+    if (_promptRepository != null) await _promptRepository!.updatePrompt(prompt);
+  }
+
+  Future<void> deletePrompt(String promptId) async {
+    if (_promptRepository != null) await _promptRepository!.deletePrompt(promptId);
+  }
+
+  // ... (Dine createTodoFromPrompt, attachPromptToTask og optimerPromptText metoder forbliver uændrede) ...
   Future<void> createTodoFromPrompt(PromptModel prompt, {String? targetListId}) async {
-    setLoading(true); // Kalder BaseViewModel's metode
-    
+    setLoading(true);
     try {
       final descriptionBuilder = StringBuffer();
       descriptionBuilder.writeln(prompt.content);
-      
-      if (prompt.tags.isNotEmpty) {
-        descriptionBuilder.writeln("\nTags: ${prompt.tags.join(', ')}");
-      }
+      if (prompt.tags.isNotEmpty) descriptionBuilder.writeln("\nTags: ${prompt.tags.join(', ')}");
 
       await addTask(
         prompt.title,
@@ -49,21 +68,17 @@ mixin PromptMixin on BaseViewModel {
         category: 'AI Prompts',
         listId: targetListId ?? activeListId,
       );
-      
     } catch (e) {
-      print("Fejl ved oprettelse fra prompt: $e");
+      print("Fejl ved create: $e");
     } finally {
       setLoading(false);
     }
   }
 
-  // --- LOGIK: Vedhæft Prompt til Opgave ---
   Future<void> attachPromptToTask(TodoTask task, PromptModel prompt) async {
     setLoading(true);
-
     try {
       String currentDesc = task.description;
-      
       final sb = StringBuffer();
       if (currentDesc.isNotEmpty) {
         sb.writeln(currentDesc);
@@ -71,43 +86,29 @@ mixin PromptMixin on BaseViewModel {
       } else {
         sb.writeln("--- 🤖 Vedhæftet Prompt: ${prompt.title} ---");
       }
-      
       sb.writeln(prompt.content);
-      
-      if (prompt.tags.isNotEmpty) {
-        sb.writeln("\nTags: ${prompt.tags.join(', ')}");
-      }
+      if (prompt.tags.isNotEmpty) sb.writeln("\nTags: ${prompt.tags.join(', ')}");
 
-      final updatedTask = task.copyWith(
-        description: sb.toString(),
-      );
-
+      final updatedTask = task.copyWith(description: sb.toString());
       await updateTaskDetails(updatedTask);
-      
     } catch (e) {
-      print("Fejl ved vedhæftning: $e");
+      print("Fejl ved attach: $e");
     } finally {
       setLoading(false);
     }
   }
 
-  // --- LOGIK: AI Optimering ---
   Future<String> optimerPromptText(String currentText) async {
+    if (_promptRepository == null) initPromptService(); // Prøv init igen
     if (_promptRepository == null) return currentText;
     
     setLoading(true);
     try {
-      final result = await _promptRepository!.optimizePrompt(currentText);
-      return result;
+      return await _promptRepository!.optimizePrompt(currentText);
     } catch (e) {
       return currentText;
     } finally {
       setLoading(false);
     }
   }
-  
-  // --- CRUD WRAPPERS ---
-  Future<void> addPrompt(PromptModel prompt) async => await _promptRepository?.addPrompt(prompt);
-  Future<void> updatePrompt(PromptModel prompt) async => await _promptRepository?.updatePrompt(prompt);
-  Future<void> deletePrompt(String promptId) async => await _promptRepository?.deletePrompt(promptId);
 }
