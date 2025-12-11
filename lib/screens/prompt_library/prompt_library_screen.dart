@@ -118,15 +118,13 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Prompt Database"),
-        // Vi fjerner '+' ikonet i toppen, da vi nu har en FAB i bunden
       ),
-      // --- HER ER DIN NYE FLOATING ACTION BUTTON ---
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showPromptEditor(),
-        backgroundColor: Theme.of(context).colorScheme.primary, // Bruger appens primære farve
-        foregroundColor: Theme.of(context).colorScheme.onPrimary, // Sikrer teksten er læsbar (hvid på blå etc.)
+        backgroundColor: Theme.of(context).colorScheme.primary, 
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         tooltip: 'Opret ny prompt',
-        child: const Icon(Icons.add_outlined),
+        child: const Icon(Icons.add),
       ),
       body: StreamBuilder<List<PromptModel>>(
         stream: viewModel.promptsStream,
@@ -152,7 +150,6 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
 
           return ListView.separated(
             itemCount: prompts.length,
-            // Vi tilføjer 80px padding i bunden, så knappen ikke dækker den sidste prompt
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
@@ -164,12 +161,46 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                   child: Column(
                     children: [
                       ListTile(
+                        onTap: () => _showPromptEditor(prompt: prompt), // Åbner editor ved tryk
                         title: Text(prompt.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(
-                          prompt.content, 
-                          maxLines: 4, 
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              prompt.content, 
+                              maxLines: 2, 
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                            ),
+                            // --- VISNING AF TAGS ---
+                            if (prompt.tags.isNotEmpty) 
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: prompt.tags.map((tag) => Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                                        width: 0.5
+                                      ),
+                                    ),
+                                    child: Text(
+                                      tag,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                        fontWeight: FontWeight.w500
+                                      ),
+                                    ),
+                                  )).toList(),
+                                ),
+                              ),
+                          ],
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -192,8 +223,8 @@ class _PromptLibraryScreenState extends State<PromptLibraryScreen> {
                           width: double.infinity,
                           child: ElevatedButton.icon(
                             icon: const Icon(Icons.bolt, size: 18),
-                            label: const Text("Brug Prompt"),
-                            onPressed: () => _handleUsePrompt(context, prompt),
+                            label: const Text("To do"),
+                            onPressed: () => _handleUsePrompt(context, prompt), // Håndterer både 'Ny' og 'Vedhæft'
                           ),
                         ),
                       ),
