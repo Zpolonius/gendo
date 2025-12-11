@@ -93,6 +93,19 @@ mixin PomodoroMixin on BaseViewModel, TaskMixin {
     if (_timer != null) return; 
     await _notificationService.requestPermissions();
     
+    // Prevent starting timer on completed task if one is selected
+    if (_selectedTaskId != null) {
+      final task = selectedTaskObj;
+      if (task != null && task.isCompleted) {
+        // Option: Deselect it or just return. 
+        // For better UX, we deselect it so the user knows they are in "Free Focus" or need to pick another.
+        _selectedTaskId = null;
+        notifyListeners();
+        // We could also show a notification/toast here if we had the context, 
+        // but for now we just fallback to Free Focus which is safe.
+      }
+    }
+
     // Sæt status hvis vi starter fra idle
     if (_timerStatus == TimerStatus.idle) _timerStatus = TimerStatus.working; 
     

@@ -178,7 +178,11 @@ void _handleTaskCompletion(AppViewModel vm) async {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              vm.completeTaskEarly(); // Markerer færdig, fjerner valg, lader ur køre
+              vm.completeTaskEarly(); // Markerer færdig (hvis ikke allerede gjort), fjerner valg
+              // Vent et øjeblik så dialogen er væk, før vi viser vælgeren
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (context.mounted) _showTaskPicker(context, vm);
+              });
             },
             child: const Text("Vælg ny opgave"),
           ),
