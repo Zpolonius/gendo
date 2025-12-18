@@ -9,6 +9,8 @@ import '../viewmodels/calendar_viewmodel.dart';
 import '../widgets/calendar_item.dart';
 import 'task_detail_screen.dart';
 
+import '../widgets/month_calendar.dart'; // Import Month Widget
+
 class CalendarScreen extends StatelessWidget {
   const CalendarScreen({super.key});
 
@@ -31,40 +33,30 @@ class _CalendarScaffold extends StatefulWidget {
 
 class _CalendarScaffoldState extends State<_CalendarScaffold> {
   late PageController _pageController;
-  
-  // Vi starter PageController på en høj index (f.eks. 10000) for at kunne swipe tilbage i tid
-  // Index 10000 = I dag
   final int _initialPage = 10000;
+  bool _isMonthView = false; // State til at styre visning
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _initialPage);
   }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
+  
+  // ... Dispose ...
 
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<CalendarViewModel>();
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    // Synkroniser PageView med ViewModel hvis dato ændres udefra (f.eks. "I dag" knap)
-    // Bemærk: Dette er lidt tricky med dublex-binding, så vi gør det simpelt:
-    // PageView styrer primært datoen ved swipe.
     
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(
-          DateFormat('MMMM yyyy').format(vm.selectedDate), // F.eks. "December 2025"
+        // Kun vis titel hvis vi er i dagsvisning (Månedsvisning har sin egen header)
+        title: !_isMonthView ? Text(
+          DateFormat('MMMM yyyy').format(vm.selectedDate), 
           style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-        ),
+        ) : null,
         elevation: 0,
         backgroundColor: theme.scaffoldBackgroundColor,
         foregroundColor: theme.colorScheme.onSurface,
@@ -74,35 +66,56 @@ class _CalendarScaffoldState extends State<_CalendarScaffold> {
             icon: const Icon(Icons.today),
             onPressed: () {
                vm.jumpToToday();
-               _pageController.jumpToPage(_initialPage);
+               setState(() {
+                  _isMonthView = false;
+               });
+               // Reset også page controller hvis vi går til dagsvisning
+               if (_pageController.hasClients) {
+                 _pageController.jumpToPage(_initialPage);
+               }
             },
             tooltip: "Gå til i dag",
           ),
           IconButton(
-            icon: const Icon(Icons.calendar_view_month),
+            // Skift ikon baseret på view
+            icon: Icon(_isMonthView ? Icons.view_day : Icons.calendar_view_month),
             onPressed: () {
-              // TODO: Implement Month View (Fase 3)
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Månedsvisning kommer snart!")));
+              setState(() {
+                _isMonthView = !_isMonthView;
+              });
             },
           )
         ],
       ),
-      body: PageView.builder(
-        controller: _pageController,
-        onPageChanged: (index) {
-          final diff = index - _initialPage;
-          final newDate = DateTime.now().add(Duration(days: diff));
-          // Undgå loop hvis vm allerede har datoen
-          if (!DateUtils.isSameDay(newDate, vm.selectedDate)) {
-             vm.setDate(newDate);
-          }
-        },
-        itemBuilder: (context, index) {
-          final diff = index - _initialPage;
-          final date = DateTime.now().add(Duration(days: diff));
-          return _DayView(date: date);
-        },
-      ),
+      body: _isMonthView 
+        ? MonthCalendarWidget(
+            initialDate: vm.selectedDate,
+            onDateSelected: (date) {
+               // Når man klikker på en dag i månedsvisning:
+               // 1. Opdater valgte dato
+               vm.setDate(date);
+               // 2. Skift tilbage til dagsvisning
+               setState(() => _isMonthView = false);
+               // 3. Beregn diff til page controller hvis nødvendigt, eller bare lad viewmodel styre det
+               // (Husk vores "simple" pageview logik i dagsvisning er lidt løsrevet, 
+               // men vi lader den refreshe når brugeren swiper)
+            },
+          )
+        : PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              final diff = index - _initialPage;
+              final newDate = DateTime.now().add(Duration(days: diff));
+              if (!DateUtils.isSameDay(newDate, vm.selectedDate)) {
+                 vm.setDate(newDate);
+              }
+            },
+            itemBuilder: (context, index) {
+              final diff = index - _initialPage;
+              final date = DateTime.now().add(Duration(days: diff));
+              return _DayView(date: date);
+            },
+          ),
     );
   }
 }

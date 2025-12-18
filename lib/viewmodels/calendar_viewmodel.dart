@@ -150,26 +150,22 @@ class CalendarViewModel extends ChangeNotifier {
 
   // --- RENDERING HELPERS ---
 
-  // Returnerer entries med beregnede positioner til DayView (00:00 - 24:00)
   List<RenderEntry> getRenderedEntriesForDay(double hourHeight) {
+    // ... eksisterende kode ...
     final entries = combinedEntriesForDay;
     List<RenderEntry> rendered = [];
     
     for (var entry in entries) {
-      if (entry.isAllDay) continue; // All-day håndteres separat i toppen
+      if (entry.isAllDay) continue; 
 
-      // Beregn Top (Start tid)
       final startHour = entry.start.hour + (entry.start.minute / 60.0);
       final top = startHour * hourHeight;
       
-      // Beregn Højde (Varighed)
       final durationMinutes = entry.end.difference(entry.start).inMinutes;
       final height = (durationMinutes / 60.0) * hourHeight;
 
-      // TODO: Fase 2.5 - Håndter overlap (kolonner eller indrykning)
-      // For nu hardcoder vi bredden så de ikke fylder alt, hvis vi vil vise overlap senere
-      final left = 60.0; // Plads til tids-labels
-      final width = 250.0; // Eller screenWidth - 70
+      final left = 60.0; 
+      final width = 250.0; 
 
       rendered.add(RenderEntry(
         entry: entry,
@@ -177,5 +173,25 @@ class CalendarViewModel extends ChangeNotifier {
       ));
     }
     return rendered;
+  }
+
+  // Helper til Månedsvisning: Returnerer simple entry-data for en specifik dato
+  // Bruges til at tegne små prikker (dots) i kalenderen
+  List<CalendarEntry> getEntriesForDate(DateTime date) {
+    List<CalendarEntry> dayEntries = [];
+    
+    for (var e in _events) {
+      if (isSameDay(e.start, date)) {
+        dayEntries.add(EventEntry(e));
+      }
+    }
+    
+    final tasksWithDate = _appViewModel.allTasks.where((t) => t.dueDate != null && !t.isCompleted);
+    for (var t in tasksWithDate) {
+      if (isSameDay(t.dueDate!, date)) {
+        dayEntries.add(TaskEntry(t));
+      }
+    }
+    return dayEntries;
   }
 }
