@@ -150,6 +150,10 @@ class CalendarViewModel extends ChangeNotifier {
 
   // --- RENDERING HELPERS ---
 
+  List<CalendarEntry> get allDayEntriesForDay {
+    return combinedEntriesForDay.where((e) => e.isAllDay).toList();
+  }
+
   List<RenderEntry> getRenderedEntriesForDay(double hourHeight) {
     // ... eksisterende kode ...
     final entries = combinedEntriesForDay;

@@ -167,12 +167,15 @@ class _DayViewState extends State<_DayView> {
     
     final isSelectedDay = DateUtils.isSameDay(widget.date, vm.selectedDate);
     
+    final allDayEntries = vm.allDayEntriesForDay;
+    
     return Column(
       children: [
-        // 1. Dato Header (Man 18)
+        // 1. Dato Header
         Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           alignment: Alignment.center,
+          // ... (Dato header kode - bevares ved at pakke det ind eller kopiere, men her indsætter jeg det hele for kontekst)
           child: Column(
             children: [
               Text(DateFormat('EEEE').format(widget.date).toUpperCase(), style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
@@ -194,6 +197,36 @@ class _DayViewState extends State<_DayView> {
             ],
           ),
         ),
+        
+        // 1.5 All Day Sektion (Ny)
+        if (isSelectedDay && allDayEntries.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Theme.of(context).dividerColor.withOpacity(0.05),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("HELE DAGEN", style: TextStyle(fontSize: 10, color: Theme.of(context).disabledColor, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                ...allDayEntries.map((entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: CalendarItemWidget(
+                    entry: entry,
+                    onTap: () {
+                         if (entry.isTask) {
+                           final task = (entry as TaskEntry).task;
+                           Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => TaskDetailScreen(taskId: task.id, initialTask: task, onStartTask: (){})
+                           ));
+                         } else {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(entry.title)));
+                         }
+                    }
+                  ),
+                )),
+              ],
+            ),
+          ),
         
         // 2. Tidslinje Scroll
         Expanded(
