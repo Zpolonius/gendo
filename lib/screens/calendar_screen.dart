@@ -44,7 +44,7 @@ class _CalendarBody extends StatelessWidget {
               painter: TimelinePainter(
                 focusedTime: calVm.focusedTime,
                 granularity: calVm.granularity,
-                tasks: calVm.visibleTasks, // TODO: Remove this from painter later
+                tasks: [] /* unused */,
                 textColor: isDark ? Colors.white : Colors.black87,
                 lineColor: isDark ? Colors.white24 : Colors.black12,
               ),
@@ -162,15 +162,14 @@ class _CalendarBody extends StatelessWidget {
 class TimelinePainter extends CustomPainter {
   final DateTime focusedTime;
   final TimeGranularity granularity;
-  final List<TodoTask> tasks;
-  // Events fjernet fra painter - håndteres nu af Widgets
+  // tasks fjernet - håndteres nu af Widgets
   final Color textColor;
   final Color lineColor;
 
   TimelinePainter({
     required this.focusedTime,
     required this.granularity,
-    required this.tasks,
+    required List<dynamic> tasks, // Ignoreret
     required this.textColor,
     required this.lineColor,
   });
@@ -198,30 +197,7 @@ class TimelinePainter extends CustomPainter {
       textPainter.text = TextSpan(text: label, style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 12));
       textPainter.layout();
       textPainter.paint(canvas, Offset(5, yPos - textPainter.height / 2));
-
-      // 2. Events (Fjernet herfra)
-
-      // 3. Tegn TASKS (Højre side)
-      for (var task in tasks) {
-        if (task.dueDate != null && _isSameSlot(task.dueDate!, stepTime)) {
-           _drawTaskDot(canvas, yPos, task, size.width);
-        }
-      }
     }
-  }
-
-  // Hjælpere til tegning
-
-  void _drawTaskDot(Canvas canvas, double y, TodoTask task, double screenWidth) {
-     final paint = Paint()..color = Colors.redAccent;
-     canvas.drawCircle(Offset(220, y), 5, paint); // Dot på højre side
-     
-     final textPainter = TextPainter(
-       text: TextSpan(text: task.title, style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500)),
-       textDirection: ui.TextDirection.ltr
-     );
-     textPainter.layout(maxWidth: screenWidth - 240);
-     textPainter.paint(canvas, Offset(235, y - textPainter.height / 2));
   }
 
   // Dato Logik
@@ -256,5 +232,5 @@ class TimelinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(TimelinePainter old) => 
-    old.focusedTime != focusedTime || old.granularity != granularity || old.tasks != tasks;
+    old.focusedTime != focusedTime || old.granularity != granularity;
 }
