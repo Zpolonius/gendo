@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../models.dart';
 import '../viewmodel.dart';
+import 'dart:ui' as ui;
 import '../viewmodels/calendar_viewmodel.dart';
 import '../widgets/calendar_item.dart';
 import 'task_detail_screen.dart';
@@ -214,7 +215,7 @@ class _DayGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final linePaint = Paint()..color = lineColor.withOpacity(0.2)..strokeWidth = 1.0;
-    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    final textPainter = TextPainter(textDirection: ui.TextDirection.ltr);
 
     for (int i = 0; i < 24; i++) {
       final y = i * hourHeight;
