@@ -110,6 +110,62 @@ class CalendarViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- RENDERING HELPERS ---
+
+  List<RenderEvent> get renderedEvents {
+    return _calculateLayout(_events, _focusedTime, _granularity);
+  }
+
+  List<RenderEvent> _calculateLayout(List<CalendarEvent> events, DateTime focusTime, TimeGranularity granularity) {
+    // 1. Filter events that are visible on screen (roughly)
+    // We are rendering from -screenHeight/2 to +screenHeight/2 relative to center
+    // But since we want smooth scrolling, we render a bit more.
+    
+    List<RenderEvent> rendered = [];
+    final screenHeight = 800.0; // Estimate or pass from UI
+    final centerY = screenHeight / 2;
+    
+    double pixelsPerStep = 60.0;
+    if (granularity == TimeGranularity.months) pixelsPerStep = 40.0;
+    
+    // Helper to get Y for a time
+    double getYForTime(DateTime time) {
+      if (granularity == TimeGranularity.hours) {
+        // Hours: 1 step = 1 hour
+        // Difference from focusTime
+        final diff = time.difference(focusTime);
+        final steps = diff.inMinutes / 60.0;
+        return centerY + (steps * pixelsPerStep);
+      } else if (granularity == TimeGranularity.days) {
+        final diff = time.difference(focusTime);
+        final steps = diff.inHours / 24.0; 
+        return centerY + (steps * pixelsPerStep);
+      }
+      // Simplification for other granularities for now
+      return centerY;
+    }
+
+    for (var event in events) {
+      final startY = getYForTime(event.start);
+      final endY = getYForTime(event.end);
+      
+      // Basic visibility check (with huge buffer)
+      if (endY < -1000 || startY > 2000) continue;
+
+      final height = (endY - startY).clamp(20.0, 2000.0); // Min height 20
+      
+      // Phase 1: Simple hardcoded X position
+      // Matching the old TimelinePainter logic: 70px from left
+      
+      rendered.add(RenderEvent(
+        event: event,
+        rect: Rect.fromLTWH(70, startY, 150, height), // Wider than old 120
+      ));
+    }
+    
+    return rendered;
+  }
+
   // --- PRIVATE HJÆLPERE ---
 
   int _getSensitivity() {
@@ -130,4 +186,11 @@ class CalendarViewModel extends ChangeNotifier {
        _lastHapticTime = DateTime.now();
     }
   }
+}
+
+class RenderEvent {
+  final CalendarEvent event;
+  final Rect rect;
+
+  RenderEvent({required this.event, required this.rect});
 }

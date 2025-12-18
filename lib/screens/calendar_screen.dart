@@ -9,6 +9,7 @@ import '../models.dart';
 import '../models/calendar_event.dart';
 import '../viewmodels/calendar_viewmodel.dart';
 import '../widgets/thumb_wheel_widget.dart';
+import '../widgets/event_card.dart';
 
 class CalendarScreen extends StatelessWidget {
   const CalendarScreen({super.key});
@@ -37,21 +38,36 @@ class _CalendarBody extends StatelessWidget {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: Stack(
         children: [
-          // 1. Tidslinjen
+          // 1. Tidslinjen (Baggrund)
           Positioned.fill(
             child: CustomPaint(
               painter: TimelinePainter(
                 focusedTime: calVm.focusedTime,
                 granularity: calVm.granularity,
                 tasks: calVm.visibleTasks,
-                events: calVm.visibleEvents,
                 textColor: isDark ? Colors.white : Colors.black87,
                 lineColor: isDark ? Colors.white24 : Colors.black12,
               ),
             ),
           ),
           
-          // 2. "NU" Indikatoren (Center Linje)
+          // 2. Events (Widgets)
+          // Vi bruger en Stack til at placere events præcist
+          ...calVm.renderedEvents.map((renderEvent) {
+            return Positioned.fromRect(
+              rect: renderEvent.rect,
+              child: EventCard(
+                event: renderEvent.event,
+                onTap: () {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     SnackBar(content: Text("Valgt: ${renderEvent.event.title}"))
+                   );
+                },
+              ),
+            );
+          }),
+
+          // 3. "NU" Indikatoren (Center Linje)
           Positioned(
             top: MediaQuery.of(context).size.height / 2,
             left: 0,
@@ -67,7 +83,7 @@ class _CalendarBody extends StatelessWidget {
             ),
           ),
           
-          // 3. Info HUD (Dato & Zoom)
+          // 4. Info HUD (Dato & Zoom)
           Positioned(
             top: 60,
             left: 20,
@@ -102,7 +118,7 @@ class _CalendarBody extends StatelessWidget {
             ),
           ),
 
-          // 4. Thumb Wheel Controller
+          // 5. Thumb Wheel Controller
           Positioned(
             bottom: 60,
             right: 0,
@@ -113,7 +129,7 @@ class _CalendarBody extends StatelessWidget {
             ),
           ),
           
-          // 5. Reset knap
+          // 6. Reset knap
           Positioned(
             bottom: 40,
             left: 20,
@@ -133,7 +149,7 @@ class TimelinePainter extends CustomPainter {
   final DateTime focusedTime;
   final TimeGranularity granularity;
   final List<TodoTask> tasks;
-  final List<CalendarEvent> events;
+  // Events fjernet fra painter - håndteres nu af Widgets
   final Color textColor;
   final Color lineColor;
 
@@ -141,7 +157,6 @@ class TimelinePainter extends CustomPainter {
     required this.focusedTime,
     required this.granularity,
     required this.tasks,
-    required this.events,
     required this.textColor,
     required this.lineColor,
   });
@@ -154,12 +169,10 @@ class TimelinePainter extends CustomPainter {
     
     // Konfiguration
     double pixelsPerStep = 60.0;
-    // Juster steps baseret på zoom for at undgå clutter
     if (granularity == TimeGranularity.months) pixelsPerStep = 40.0;
     
     int stepsToRender = (size.height / pixelsPerStep).ceil() + 2; 
 
-    // Loop gennem steps (både fortid og fremtid ift. skærmens midte)
     for (int i = -stepsToRender; i <= stepsToRender; i++) {
       double yPos = centerY + (i * pixelsPerStep);
       DateTime stepTime = _addSteps(focusedTime, i);
@@ -172,13 +185,7 @@ class TimelinePainter extends CustomPainter {
       textPainter.layout();
       textPainter.paint(canvas, Offset(5, yPos - textPainter.height / 2));
 
-      // 2. Tegn EVENTS (Venstre side)
-      // Tjekker om events overlapper dette tidspunkt
-      for (var event in events) {
-        if (_isEventCovering(event, stepTime, pixelsPerStep)) {
-           _drawEventBlock(canvas, yPos, event, pixelsPerStep);
-        }
-      }
+      // 2. Events (Fjernet herfra)
 
       // 3. Tegn TASKS (Højre side)
       for (var task in tasks) {
@@ -190,26 +197,6 @@ class TimelinePainter extends CustomPainter {
   }
 
   // Hjælpere til tegning
-
-  void _drawEventBlock(Canvas canvas, double y, CalendarEvent event, double stepHeight) {
-    // Vi tegner en simpel farvet blok til venstre for tidslinjen
-    final paint = Paint()..color = event.color.withOpacity(0.3);
-    
-    // Vi tegner den 200px bred, startende fra venstre kant (minus lidt padding)
-    // Bemærk: En rigtig robust løsning ville beregne præcis start/slut Y-koordinater for eventet,
-    // men her tegner vi "per step" hvilket er fint til visualisering.
-    final rect = Rect.fromLTWH(70, y - (stepHeight/2) + 2, 120, stepHeight - 4);
-    
-    // Kun tegn en gang pr. "blok" - dette er en simpel visualisering. 
-    // Hvis vi vil have titlen med, skal vi tjekke om vi er tæt på "start" tiden.
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), paint);
-    
-    // Tegn titel hvis vi er tæt på start-tiden
-    double diffMinutes = event.start.difference(focusedTime).inMinutes.abs().toDouble(); // Grov logik
-    // En bedre logik er at tjekke om y er tæt på centerY og eventet er aktivt, eller bare tegne teksten i midten af blokken.
-    // For nu: Tegn lille indikator.
-    canvas.drawRect(Rect.fromLTWH(70, y - (stepHeight/2) + 2, 4, stepHeight - 4), Paint()..color = event.color);
-  }
 
   void _drawTaskDot(Canvas canvas, double y, TodoTask task, double screenWidth) {
      final paint = Paint()..color = Colors.redAccent;
@@ -253,14 +240,7 @@ class TimelinePainter extends CustomPainter {
     }
   }
 
-  bool _isEventCovering(CalendarEvent event, DateTime stepTime, double stepHeight) {
-    // Simpel collision check: Er stepTime inden for event start/slut?
-    // Vi bruger en lille buffer for ikke at tegne i "hullerne" hvis granulatiten er grov
-    return stepTime.isAfter(event.start.subtract(const Duration(minutes: 1))) && 
-           stepTime.isBefore(event.end.add(const Duration(minutes: 1)));
-  }
-
   @override
   bool shouldRepaint(TimelinePainter old) => 
-    old.focusedTime != focusedTime || old.granularity != granularity || old.tasks != tasks || old.events != events;
+    old.focusedTime != focusedTime || old.granularity != granularity || old.tasks != tasks;
 }

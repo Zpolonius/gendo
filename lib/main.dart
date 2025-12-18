@@ -19,6 +19,7 @@ import 'firebase_options.dart';
 import 'screens/pomodoro_screen.dart';
 import 'screens/todo_list_screen.dart';
 import 'screens/prompt_library/prompt_library_screen.dart';
+import 'screens/calendar_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -251,6 +252,7 @@ class _MainScreenState extends State<MainScreen> {
       const PomodoroScreen(),
       TodoListScreen(onSwitchTab: _switchTab),
       const PromptLibraryScreen(),
+      const CalendarScreen()
     ];
 
     return Scaffold(
@@ -285,6 +287,7 @@ class _MainScreenState extends State<MainScreen> {
           NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Fokus'),
           NavigationDestination(icon: Icon(Icons.check_circle_outline), selectedIcon: Icon(Icons.check_circle), label: 'Opgaver'),
           NavigationDestination(icon: Icon(Icons.lightbulb_circle_outlined), selectedIcon: Icon(Icons.lightbulb_circle), label: 'Prompt'),
+          NavigationDestination(icon: Icon(Icons.calendar_today_outlined), selectedIcon: Icon(Icons.calendar_today), label: 'Kalender'),
          
           
         ],
