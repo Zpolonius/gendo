@@ -120,15 +120,13 @@ class CalendarViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Unified Getter: Returnerer entries for den valgte dag
-  List<CalendarEntry> get combinedEntriesForDay {
-    // Filtrer events/tasks til KUN at være på _selectedDate
-    
+  // Unified Getter: Returnerer entries for en specifik dag
+  List<CalendarEntry> getCombinedEntriesFor(DateTime date) {
     List<CalendarEntry> dayEntries = [];
     
     // 1. Events
     for (var e in _events) {
-      if (isSameDay(e.start, _selectedDate)) {
+      if (isSameDay(e.start, date)) {
         dayEntries.add(EventEntry(e));
       }
     }
@@ -136,7 +134,7 @@ class CalendarViewModel extends ChangeNotifier {
     // 2. Tasks
     final tasksWithDate = _appViewModel.allTasks.where((t) => t.dueDate != null && !t.isCompleted);
     for (var t in tasksWithDate) {
-      if (isSameDay(t.dueDate!, _selectedDate)) {
+      if (isSameDay(t.dueDate!, date)) {
         dayEntries.add(TaskEntry(t));
       }
     }
@@ -150,13 +148,12 @@ class CalendarViewModel extends ChangeNotifier {
 
   // --- RENDERING HELPERS ---
 
-  List<CalendarEntry> get allDayEntriesForDay {
-    return combinedEntriesForDay.where((e) => e.isAllDay).toList();
+  List<CalendarEntry> getAllDayEntriesFor(DateTime date) {
+    return getCombinedEntriesFor(date).where((e) => e.isAllDay).toList();
   }
 
-  List<RenderEntry> getRenderedEntriesForDay(double hourHeight) {
-    // ... eksisterende kode ...
-    final entries = combinedEntriesForDay;
+  List<RenderEntry> getRenderedEntriesFor(DateTime date, double hourHeight) {
+    final entries = getCombinedEntriesFor(date);
     List<RenderEntry> rendered = [];
     
     for (var entry in entries) {

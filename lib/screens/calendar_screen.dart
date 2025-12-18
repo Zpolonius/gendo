@@ -167,7 +167,7 @@ class _DayViewState extends State<_DayView> {
     
     final isSelectedDay = DateUtils.isSameDay(widget.date, vm.selectedDate);
     
-    final allDayEntries = vm.allDayEntriesForDay;
+    final allDayEntries = vm.getAllDayEntriesFor(widget.date);
     
     return Column(
       children: [
@@ -175,14 +175,13 @@ class _DayViewState extends State<_DayView> {
         Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           alignment: Alignment.center,
-          // ... (Dato header kode - bevares ved at pakke det ind eller kopiere, men her indsætter jeg det hele for kontekst)
           child: Column(
             children: [
               Text(DateFormat('EEEE').format(widget.date).toUpperCase(), style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: isSelectedDay && DateUtils.isSameDay(widget.date, DateTime.now()) 
+                decoration: isSelectedDay 
                   ? const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle) 
                   : null,
                 child: Text(
@@ -190,7 +189,7 @@ class _DayViewState extends State<_DayView> {
                   style: TextStyle(
                     fontSize: 20, 
                     fontWeight: FontWeight.bold,
-                    color: (isSelectedDay && DateUtils.isSameDay(widget.date, DateTime.now())) ? Colors.white : null
+                    color: isSelectedDay ? Colors.white : null
                   )
                 ),
               ),
@@ -199,7 +198,7 @@ class _DayViewState extends State<_DayView> {
         ),
         
         // 1.5 All Day Sektion (Ny)
-        if (isSelectedDay && allDayEntries.isNotEmpty)
+        if (allDayEntries.isNotEmpty)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             color: Theme.of(context).dividerColor.withOpacity(0.05),
@@ -243,26 +242,25 @@ class _DayViewState extends State<_DayView> {
                      size: const Size(double.infinity, 1440),
                    ),
                    
-                   // Events (Kun hvis det er den valgte dag, for nu)
-                   if (isSelectedDay)
-                     ...vm.getRenderedEntriesForDay(60.0).map((renderEntry) {
-                        return Positioned.fromRect(
-                          rect: renderEntry.rect,
-                          child: CalendarItemWidget(
-                            entry: renderEntry.entry,
-                            onTap: () {
-                               if (renderEntry.entry.isTask) {
-                                 final task = (renderEntry.entry as TaskEntry).task;
-                                 Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => TaskDetailScreen(taskId: task.id, initialTask: task, onStartTask: (){})
-                                 ));
-                               } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(renderEntry.entry.title)));
-                               }
-                            },
-                          ),
-                        );
-                     }),
+                   // Events (Renderes for ALLE dage, ikke kun den valgte, så man kan swipe)
+                   ...vm.getRenderedEntriesFor(widget.date, 60.0).map((renderEntry) {
+                      return Positioned.fromRect(
+                        rect: renderEntry.rect,
+                        child: CalendarItemWidget(
+                          entry: renderEntry.entry,
+                          onTap: () {
+                             if (renderEntry.entry.isTask) {
+                               final task = (renderEntry.entry as TaskEntry).task;
+                               Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => TaskDetailScreen(taskId: task.id, initialTask: task, onStartTask: (){})
+                               ));
+                             } else {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(renderEntry.entry.title)));
+                             }
+                          },
+                        ),
+                      );
+                   }),
                      
                    // Current Time Indicator (Hvis i dag)
                    if (DateUtils.isSameDay(widget.date, DateTime.now()))
