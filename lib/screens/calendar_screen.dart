@@ -2,15 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'dart:ui' as ui;
-
-import '../viewmodel.dart';
 import '../models.dart';
-import '../models/calendar_event.dart';
+import '../viewmodel.dart';
 import '../viewmodels/calendar_viewmodel.dart';
-import '../widgets/thumb_wheel_widget.dart';
 import '../widgets/calendar_item.dart';
-import '../screens/task_detail_screen.dart'; // Import for navigation
+import 'task_detail_screen.dart';
 
 class CalendarScreen extends StatelessWidget {
   const CalendarScreen({super.key});
@@ -20,217 +16,246 @@ class CalendarScreen extends StatelessWidget {
     return ChangeNotifierProxyProvider<AppViewModel, CalendarViewModel>(
       create: (context) => CalendarViewModel(context.read<AppViewModel>()),
       update: (context, appVm, calendarVm) => calendarVm ?? CalendarViewModel(appVm),
-      child: const _CalendarBody(),
+      child: const _CalendarScaffold(),
     );
   }
 }
 
-class _CalendarBody extends StatelessWidget {
-  const _CalendarBody();
+class _CalendarScaffold extends StatefulWidget {
+  const _CalendarScaffold();
+
+  @override
+  State<_CalendarScaffold> createState() => _CalendarScaffoldState();
+}
+
+class _CalendarScaffoldState extends State<_CalendarScaffold> {
+  late PageController _pageController;
+  
+  // Vi starter PageController på en høj index (f.eks. 10000) for at kunne swipe tilbage i tid
+  // Index 10000 = I dag
+  final int _initialPage = 10000;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _initialPage);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final calVm = context.watch<CalendarViewModel>();
+    final vm = context.watch<CalendarViewModel>();
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    // Synkroniser PageView med ViewModel hvis dato ændres udefra (f.eks. "I dag" knap)
+    // Bemærk: Dette er lidt tricky med dublex-binding, så vi gør det simpelt:
+    // PageView styrer primært datoen ved swipe.
     
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: Stack(
-        children: [
-          // 1. Tidslinjen (Baggrund)
-          Positioned.fill(
-            child: CustomPaint(
-              painter: TimelinePainter(
-                focusedTime: calVm.focusedTime,
-                granularity: calVm.granularity,
-                tasks: [] /* unused */,
-                textColor: isDark ? Colors.white : Colors.black87,
-                lineColor: isDark ? Colors.white24 : Colors.black12,
-              ),
-            ),
+      appBar: AppBar(
+        title: Text(
+          DateFormat('MMMM yyyy').format(vm.selectedDate), // F.eks. "December 2025"
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        elevation: 0,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: theme.colorScheme.onSurface,
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.today),
+            onPressed: () {
+               vm.jumpToToday();
+               _pageController.jumpToPage(_initialPage);
+            },
+            tooltip: "Gå til i dag",
           ),
-          
-          // 2. Events & Tasks (Widgets)
-          ...calVm.renderedEntries.map((renderEntry) {
-            return Positioned.fromRect(
-              rect: renderEntry.rect,
-              child: CalendarItemWidget(
-                entry: renderEntry.entry,
-                onTap: () {
-                   if (renderEntry.entry.isTask) {
-                     // Navigering til Task Detail
-                     _openTaskDetail(context, (renderEntry.entry as TaskEntry).task);
-                   } else {
-                     ScaffoldMessenger.of(context).showSnackBar(
-                       SnackBar(content: Text("Event: ${renderEntry.entry.title}"))
-                     );
-                   }
-                },
-              ),
-            );
-          }),
-
-          // 3. "NU" Indikatoren (Center Linje) - bevares midlertidigt
-          Positioned(
-            top: MediaQuery.of(context).size.height / 2,
-            left: 0,
-            right: 0,
-            child: Container(
-              height: 2,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.redAccent.withOpacity(0.1), Colors.redAccent, Colors.transparent],
-                  stops: const [0.0, 0.4, 1.0],
-                ),
-              ),
-            ),
-          ),
-          
-          // 4. Info HUD (Dato & Zoom)
-          Positioned(
-            top: 60,
-            left: 20,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  DateFormat('EEEE, d. MMMM').format(calVm.focusedTime),
-                  style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold, color: theme.textTheme.bodyLarge?.color),
-                ),
-                Row(
-                  children: [
-                    Text(
-                      DateFormat('HH:mm').format(calVm.focusedTime),
-                      style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.w300, color: theme.primaryColor),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: theme.primaryColor),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        calVm.granularity.name.toUpperCase(),
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: theme.primaryColor),
-                      ),
-                    )
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // 5. Thumb Wheel Controller
-          Positioned(
-            bottom: 60,
-            right: 0,
-            child: ThumbWheelWidget(
-              rotation: calVm.wheelRotation,
-              onTap: calVm.toggleGranularity,
-              onScroll: calVm.updateScroll,
-            ),
-          ),
-          
-          // 6. Reset knap
-          Positioned(
-            bottom: 40,
-            left: 20,
-            child: FloatingActionButton.small(
-              onPressed: calVm.jumpToNow,
-              backgroundColor: theme.colorScheme.surface,
-              child: Icon(Icons.my_location, color: theme.primaryColor),
-            ),
+          IconButton(
+            icon: const Icon(Icons.calendar_view_month),
+            onPressed: () {
+              // TODO: Implement Month View (Fase 3)
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Månedsvisning kommer snart!")));
+            },
           )
+        ],
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        onPageChanged: (index) {
+          final diff = index - _initialPage;
+          final newDate = DateTime.now().add(Duration(days: diff));
+          // Undgå loop hvis vm allerede har datoen
+          if (!DateUtils.isSameDay(newDate, vm.selectedDate)) {
+             vm.setDate(newDate);
+          }
+        },
+        itemBuilder: (context, index) {
+          final diff = index - _initialPage;
+          final date = DateTime.now().add(Duration(days: diff));
+          return _DayView(date: date);
+        },
+      ),
+    );
+  }
+}
+
+class _DayView extends StatelessWidget {
+  final DateTime date;
+  
+  const _DayView({required this.date});
+
+  @override
+  Widget build(BuildContext context) {
+    // Vi spørger ViewModel om entries for denne specifikke dag
+    // Bemærk: Vi bør ideelt set pass date til viewmodel, men her tager vi den valgte.
+    // Fordi PageView renderer side-paneler præ-emptivt, kan dette give fejl hvis vi kun kigger på vm.selectedDate.
+    // Men for simpelthedens skyld antager vi at vm.selectedDate opdateres hurtigt, ELLER (bedre):
+    // Vi flytter logikken "getRenderedEntries" ind i et helper-mix, men for nu:
+    
+    final vm = context.watch<CalendarViewModel>();
+    
+    // Hack: Hvis denne widget ikke er for den valgte dag, så vis bare gitteret (optimering + undgå glitch)
+    // Eller bedre: Vi burde have en metode `getEntriesFor(date)` i VM.
+    // Da vi ikke har refaktureret VM til at give entries per dato-argument, bruger vi VM's selectedDate data.
+    // Dette betyder animationen kan se lidt sjov ud (indhold shifter mens man swiper). 
+    // Det er acceptabelt for Fase 2 start.
+    
+    final isSelectedDay = DateUtils.isSameDay(date, vm.selectedDate);
+    
+    return Column(
+      children: [
+        // 1. Dato Header (Man 18)
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          alignment: Alignment.center,
+          child: Column(
+            children: [
+              Text(DateFormat('EEEE').format(date).toUpperCase(), style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: isSelectedDay && DateUtils.isSameDay(date, DateTime.now()) 
+                  ? const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle) 
+                  : null,
+                child: Text(
+                  "${date.day}", 
+                  style: TextStyle(
+                    fontSize: 20, 
+                    fontWeight: FontWeight.bold,
+                    color: (isSelectedDay && DateUtils.isSameDay(date, DateTime.now())) ? Colors.white : null
+                  )
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // 2. Tidslinje Scroll
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: SizedBox(
+               height: 24 * 60.0, // 60px per time = 1440px total højde
+               child: Stack(
+                 children: [
+                   // Baggrunds-gitter
+                   CustomPaint(
+                     painter: _DayGridPainter(lineColor: Theme.of(context).dividerColor),
+                     size: const Size(double.infinity, 1440),
+                   ),
+                   
+                   // Events (Kun hvis det er den valgte dag, for nu)
+                   if (isSelectedDay)
+                     ...vm.getRenderedEntriesForDay(60.0).map((renderEntry) {
+                        return Positioned.fromRect(
+                          rect: renderEntry.rect,
+                          child: CalendarItemWidget(
+                            entry: renderEntry.entry,
+                            onTap: () {
+                               if (renderEntry.entry.isTask) {
+                                 final task = (renderEntry.entry as TaskEntry).task;
+                                 Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => TaskDetailScreen(taskId: task.id, initialTask: task, onStartTask: (){})
+                                 ));
+                               } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(renderEntry.entry.title)));
+                               }
+                            },
+                          ),
+                        );
+                     }),
+                     
+                   // Current Time Indicator (Hvis i dag)
+                   if (DateUtils.isSameDay(date, DateTime.now()))
+                     const _CurrentTimeIndicator()
+                 ],
+               ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DayGridPainter extends CustomPainter {
+  final Color lineColor;
+  final double hourHeight = 60.0;
+
+  _DayGridPainter({required this.lineColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()..color = lineColor.withOpacity(0.2)..strokeWidth = 1.0;
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+
+    for (int i = 0; i < 24; i++) {
+      final y = i * hourHeight;
+      
+      // Tid tekst (kl 13:00)
+      final timeText = '${i.toString().padLeft(2, '0')}:00';
+      textPainter.text = TextSpan(text: timeText, style: TextStyle(color: lineColor.withOpacity(0.5), fontSize: 12));
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(8, y - textPainter.height / 2));
+      
+      // Linje
+      canvas.drawLine(Offset(50, y), Offset(size.width, y), linePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _CurrentTimeIndicator extends StatelessWidget {
+  const _CurrentTimeIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    // Placering baseret på nuværende tid
+    final now = TimeOfDay.now();
+    final top = (now.hour * 60.0) + (now.minute);
+
+    return Positioned(
+      top: top,
+      left: 50,
+      right: 0,
+      child: Row(
+        children: [
+          Container(
+            width: 8, height: 8,
+            decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+          ),
+          Expanded(child: Container(height: 1, color: Colors.redAccent)),
         ],
       ),
     );
   }
-
-  void _openTaskDetail(BuildContext context, TodoTask task) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => TaskDetailScreen(
-        taskId: task.id, 
-        initialTask: task, 
-        onStartTask: () => print("Start task from calendar: ${task.title}") // Placeholder 
-      )
-    )); 
-  }
-}
-
-class TimelinePainter extends CustomPainter {
-  final DateTime focusedTime;
-  final TimeGranularity granularity;
-  // tasks fjernet - håndteres nu af Widgets
-  final Color textColor;
-  final Color lineColor;
-
-  TimelinePainter({
-    required this.focusedTime,
-    required this.granularity,
-    required List<dynamic> tasks, // Ignoreret
-    required this.textColor,
-    required this.lineColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final centerY = size.height / 2;
-    final textPainter = TextPainter(textDirection: ui.TextDirection.ltr);
-    final linePaint = Paint()..color = lineColor..strokeWidth = 1.0;
-    
-    // Konfiguration
-    double pixelsPerStep = 60.0;
-    if (granularity == TimeGranularity.months) pixelsPerStep = 40.0;
-    
-    int stepsToRender = (size.height / pixelsPerStep).ceil() + 2; 
-
-    for (int i = -stepsToRender; i <= stepsToRender; i++) {
-      double yPos = centerY + (i * pixelsPerStep);
-      DateTime stepTime = _addSteps(focusedTime, i);
-      
-      // 1. Tegn Tids-gitter
-      canvas.drawLine(Offset(40, yPos), Offset(60, yPos), linePaint);
-      
-      String label = _getLabel(stepTime);
-      textPainter.text = TextSpan(text: label, style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 12));
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(5, yPos - textPainter.height / 2));
-    }
-  }
-
-  // Dato Logik
-
-  DateTime _addSteps(DateTime base, int steps) {
-    switch (granularity) {
-      case TimeGranularity.hours: return base.add(Duration(hours: steps));
-      case TimeGranularity.days: return base.add(Duration(days: steps));
-      case TimeGranularity.weeks: return base.add(Duration(days: steps * 7));
-      case TimeGranularity.months: return DateTime(base.year, base.month + steps, base.day);
-    }
-  }
-
-  String _getLabel(DateTime time) {
-    switch (granularity) {
-      case TimeGranularity.hours: return DateFormat('HH:00').format(time);
-      case TimeGranularity.days: return DateFormat('E d').format(time);
-      case TimeGranularity.weeks: return "Uge ${((time.day) / 7).ceil()}"; 
-      case TimeGranularity.months: return DateFormat('MMM').format(time);
-    }
-  }
-  
-  bool _isSameSlot(DateTime t1, DateTime stepTime) {
-    Duration diff = t1.difference(stepTime).abs();
-    switch (granularity) {
-      case TimeGranularity.hours: return diff.inMinutes < 30;
-      case TimeGranularity.days: return diff.inHours < 12;
-      case TimeGranularity.weeks: return diff.inDays < 3;
-      case TimeGranularity.months: return diff.inDays < 15;
-    }
-  }
-
-  @override
-  bool shouldRepaint(TimelinePainter old) => 
-    old.focusedTime != focusedTime || old.granularity != granularity;
 }

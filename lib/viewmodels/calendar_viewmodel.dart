@@ -72,10 +72,8 @@ class CalendarViewModel extends ChangeNotifier {
   final AppViewModel _appViewModel;
   
   // --- STATE ---
-  DateTime _focusedTime = DateTime.now();
-  TimeGranularity _granularity = TimeGranularity.hours;
-  // TODO: Fjern hjul-logik når viewet er opdateret
-  double _wheelRotation = 0.0;
+  DateTime _selectedDate = DateTime.now();
+  // TimeGranularity _granularity = TimeGranularity.hours; // Ikke brugt i DayView pt
   
   // Data Containers
   List<CalendarEvent> _events = [];
@@ -85,112 +83,99 @@ class CalendarViewModel extends ChangeNotifier {
   }
 
   // Getters
-  DateTime get focusedTime => _focusedTime;
-  TimeGranularity get granularity => _granularity;
-  double get wheelRotation => _wheelRotation;
+  DateTime get selectedDate => _selectedDate;
+  
+  // --- ACTIONS ---
+
+  void setDate(DateTime date) {
+    _selectedDate = date;
+    notifyListeners();
+  }
+
+  void nextDay() {
+    _selectedDate = _selectedDate.add(const Duration(days: 1));
+    notifyListeners();
+  }
+
+  void previousDay() {
+    _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+    notifyListeners();
+  }
+
+  void jumpToToday() {
+    _selectedDate = DateTime.now();
+    notifyListeners();
+  }
 
   // --- DATA LOGIK ---
 
   void _loadMockEvents() {
-    // Simulerer data
     final now = DateTime.now();
+    // Hardcoded mock events til demo
     _events = [
-      CalendarEvent(id: '1', title: 'Møde med Marketing', start: now.subtract(const Duration(hours: 1)), end: now.add(const Duration(minutes: 30)), color: Colors.blueAccent),
-      CalendarEvent(id: '2', title: 'Frokost', start: now.add(const Duration(hours: 2)), end: now.add(const Duration(hours: 3)), color: Colors.orangeAccent),
-      CalendarEvent(id: '3', title: 'Deep Work Block', start: now.add(const Duration(hours: 4)), end: now.add(const Duration(hours: 6)), color: Colors.purpleAccent),
+      CalendarEvent(id: '1', title: 'Møde med Marketing', start: DateTime(now.year, now.month, now.day, 10, 0), end: DateTime(now.year, now.month, now.day, 11, 30), color: Colors.blueAccent),
+      CalendarEvent(id: '2', title: 'Frokost', start: DateTime(now.year, now.month, now.day, 12, 0), end: DateTime(now.year, now.month, now.day, 12, 45), color: Colors.orangeAccent),
+      CalendarEvent(id: '3', title: 'Deep Work', start: DateTime(now.year, now.month, now.day, 14, 0), end: DateTime(now.year, now.month, now.day, 16, 0), color: Colors.purpleAccent),
     ];
     notifyListeners();
   }
 
-  // Unified Getter: Kombinerer Events og Tasks
-  List<CalendarEntry> get combinedEntries {
-    List<CalendarEntry> all = [];
+  // Unified Getter: Returnerer entries for den valgte dag
+  List<CalendarEntry> get combinedEntriesForDay {
+    // Filtrer events/tasks til KUN at være på _selectedDate
     
-    // 1. Add Events
-    all.addAll(_events.map((e) => EventEntry(e)));
+    List<CalendarEntry> dayEntries = [];
     
-    // 2. Add Tasks (kun dem med dueDate)
-    final tasksWithDate = _appViewModel.allTasks.where((t) => t.dueDate != null && !t.isCompleted);
-    all.addAll(tasksWithDate.map((t) => TaskEntry(t)));
-    
-    return all;
-  }
-
-  // --- RENDERING HELPERS (Opdateret til CalendarEntry) ---
-
-  List<RenderEntry> get renderedEntries {
-    return _calculateLayout(combinedEntries, _focusedTime, _granularity);
-  }
-
-  List<RenderEntry> _calculateLayout(List<CalendarEntry> entries, DateTime focusTime, TimeGranularity granularity) {
-    // TODO: Dette skal tilpasses den nye Grid-struktur (Fase 2).
-    // For nu genbruger vi "Timeline" logikken så koden stadig compiler
-    
-    List<RenderEntry> rendered = [];
-    final screenHeight = 800.0;
-    final centerY = screenHeight / 2;
-    double pixelsPerStep = 60.0;
-    if (granularity == TimeGranularity.months) pixelsPerStep = 40.0;
-    
-    double getYForTime(DateTime time) {
-      if (granularity == TimeGranularity.hours) {
-        final diff = time.difference(focusTime);
-        final steps = diff.inMinutes / 60.0;
-        return centerY + (steps * pixelsPerStep);
-      } else if (granularity == TimeGranularity.days) {
-        final diff = time.difference(focusTime);
-        final steps = diff.inHours / 24.0; 
-        return centerY + (steps * pixelsPerStep);
+    // 1. Events
+    for (var e in _events) {
+      if (isSameDay(e.start, _selectedDate)) {
+        dayEntries.add(EventEntry(e));
       }
-      return centerY;
     }
+    
+    // 2. Tasks
+    final tasksWithDate = _appViewModel.allTasks.where((t) => t.dueDate != null && !t.isCompleted);
+    for (var t in tasksWithDate) {
+      if (isSameDay(t.dueDate!, _selectedDate)) {
+        dayEntries.add(TaskEntry(t));
+      }
+    }
+    
+    return dayEntries;
+  }
+  
+  bool isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
 
+  // --- RENDERING HELPERS ---
+
+  // Returnerer entries med beregnede positioner til DayView (00:00 - 24:00)
+  List<RenderEntry> getRenderedEntriesForDay(double hourHeight) {
+    final entries = combinedEntriesForDay;
+    List<RenderEntry> rendered = [];
+    
     for (var entry in entries) {
-      // Skip "All Day" entries i tidslinjen (de skal i toppen senere)
-      if (entry.isAllDay) continue;
+      if (entry.isAllDay) continue; // All-day håndteres separat i toppen
 
-      final startY = getYForTime(entry.start);
-      final endY = getYForTime(entry.end);
+      // Beregn Top (Start tid)
+      final startHour = entry.start.hour + (entry.start.minute / 60.0);
+      final top = startHour * hourHeight;
       
-      if (endY < -1000 || startY > 2000) continue;
+      // Beregn Højde (Varighed)
+      final durationMinutes = entry.end.difference(entry.start).inMinutes;
+      final height = (durationMinutes / 60.0) * hourHeight;
 
-      final height = (endY - startY).clamp(20.0, 2000.0);
-      
+      // TODO: Fase 2.5 - Håndter overlap (kolonner eller indrykning)
+      // For nu hardcoder vi bredden så de ikke fylder alt, hvis vi vil vise overlap senere
+      final left = 60.0; // Plads til tids-labels
+      final width = 250.0; // Eller screenWidth - 70
+
       rendered.add(RenderEntry(
         entry: entry,
-        // Vi bruger placeholders for X/Width indtil vi har kollisions-logik
-        rect: Rect.fromLTWH(70, startY, 150, height), 
+        rect: Rect.fromLTWH(left, top, width, height > 20 ? height : 20),
       ));
     }
-    
     return rendered;
-  }
-
-  // --- ACTIONS ---
-
-  void updateScroll(double deltaPixels) {
-    // OLD WHEEL LOGIC (Beholdes midlertidigt for ikke at breake build)
-    _wheelRotation += deltaPixels * 0.01;
-    final int secondsToAdd = (-deltaPixels * 60).round();
-    _focusedTime = _focusedTime.add(Duration(seconds: secondsToAdd));
-    notifyListeners();
-  }
-
-  void toggleGranularity() {
-    HapticFeedback.mediumImpact();
-    // Simpel toggle for nu
-    if (_granularity == TimeGranularity.hours) {
-      _granularity = TimeGranularity.days; 
-    } else {
-       _granularity = TimeGranularity.hours;
-    }
-    notifyListeners();
-  }
-
-  void jumpToNow() {
-    _focusedTime = DateTime.now();
-    _wheelRotation = 0;
-    HapticFeedback.lightImpact();
-    notifyListeners();
   }
 }
