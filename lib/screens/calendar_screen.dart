@@ -9,14 +9,14 @@ import '../models.dart';
 import '../models/calendar_event.dart';
 import '../viewmodels/calendar_viewmodel.dart';
 import '../widgets/thumb_wheel_widget.dart';
-import '../widgets/event_card.dart';
+import '../widgets/calendar_item.dart';
+import '../screens/task_detail_screen.dart'; // Import for navigation
 
 class CalendarScreen extends StatelessWidget {
   const CalendarScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Opretter CalendarViewModel og injecter AppViewModel
     return ChangeNotifierProxyProvider<AppViewModel, CalendarViewModel>(
       create: (context) => CalendarViewModel(context.read<AppViewModel>()),
       update: (context, appVm, calendarVm) => calendarVm ?? CalendarViewModel(appVm),
@@ -44,30 +44,34 @@ class _CalendarBody extends StatelessWidget {
               painter: TimelinePainter(
                 focusedTime: calVm.focusedTime,
                 granularity: calVm.granularity,
-                tasks: calVm.visibleTasks,
+                tasks: calVm.visibleTasks, // TODO: Remove this from painter later
                 textColor: isDark ? Colors.white : Colors.black87,
                 lineColor: isDark ? Colors.white24 : Colors.black12,
               ),
             ),
           ),
           
-          // 2. Events (Widgets)
-          // Vi bruger en Stack til at placere events præcist
-          ...calVm.renderedEvents.map((renderEvent) {
+          // 2. Events & Tasks (Widgets)
+          ...calVm.renderedEntries.map((renderEntry) {
             return Positioned.fromRect(
-              rect: renderEvent.rect,
-              child: EventCard(
-                event: renderEvent.event,
+              rect: renderEntry.rect,
+              child: CalendarItemWidget(
+                entry: renderEntry.entry,
                 onTap: () {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                     SnackBar(content: Text("Valgt: ${renderEvent.event.title}"))
-                   );
+                   if (renderEntry.entry.isTask) {
+                     // Navigering til Task Detail
+                     _openTaskDetail(context, (renderEntry.entry as TaskEntry).task);
+                   } else {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                       SnackBar(content: Text("Event: ${renderEntry.entry.title}"))
+                     );
+                   }
                 },
               ),
             );
           }),
 
-          // 3. "NU" Indikatoren (Center Linje)
+          // 3. "NU" Indikatoren (Center Linje) - bevares midlertidigt
           Positioned(
             top: MediaQuery.of(context).size.height / 2,
             left: 0,
@@ -142,6 +146,16 @@ class _CalendarBody extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _openTaskDetail(BuildContext context, TodoTask task) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TaskDetailScreen(
+        taskId: task.id, 
+        initialTask: task, 
+        onStartTask: () => print("Start task from calendar: ${task.title}") // Placeholder 
+      )
+    )); 
   }
 }
 
