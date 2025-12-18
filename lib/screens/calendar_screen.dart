@@ -91,14 +91,29 @@ class _CalendarScaffoldState extends State<_CalendarScaffold> {
         ? MonthCalendarWidget(
             initialDate: vm.selectedDate,
             onDateSelected: (date) {
-               // Når man klikker på en dag i månedsvisning:
                // 1. Opdater valgte dato
-               vm.setDate(date);
+               vm.setDate(date); // Opdater ViewModel
+               
                // 2. Skift tilbage til dagsvisning
                setState(() => _isMonthView = false);
-               // 3. Beregn diff til page controller hvis nødvendigt, eller bare lad viewmodel styre det
-               // (Husk vores "simple" pageview logik i dagsvisning er lidt løsrevet, 
-               // men vi lader den refreshe når brugeren swiper)
+               
+               // 3. Beregn korrekt page index for at synkronisere PageView
+               // _initialPage (10000) svarer til "I dag"
+               final now = DateTime.now();
+               final today = DateTime(now.year, now.month, now.day);
+               final target = DateTime(date.year, date.month, date.day);
+               final diffDays = target.difference(today).inDays;
+               
+               // Vi skal sikre at controlleren er attached før vi jumper
+               // Da vi lige har sat _isMonthView til false, rebuildes widget treeet nu.
+               // Vi bruger addPostFrameCallback eller bare delay for at lade PageView bygge først,
+               // men PageView er direkte i body, så den bør være der. 
+               // Men da jumpToPage kræver at viewet er bygget, gør vi det sådan her:
+               WidgetsBinding.instance.addPostFrameCallback((_) {
+                 if (_pageController.hasClients) {
+                    _pageController.jumpToPage(_initialPage + diffDays);
+                 }
+               });
             },
           )
         : PageView.builder(
@@ -120,28 +135,37 @@ class _CalendarScaffoldState extends State<_CalendarScaffold> {
   }
 }
 
-class _DayView extends StatelessWidget {
+class _DayView extends StatefulWidget {
   final DateTime date;
   
   const _DayView({required this.date});
 
   @override
+  State<_DayView> createState() => _DayViewState();
+}
+
+class _DayViewState extends State<_DayView> {
+  late ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start scroll på kl 08:00 (8 timer * 60 pixels = 480.0)
+    _scrollController = ScrollController(initialScrollOffset: 480.0);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Vi spørger ViewModel om entries for denne specifikke dag
-    // Bemærk: Vi bør ideelt set pass date til viewmodel, men her tager vi den valgte.
-    // Fordi PageView renderer side-paneler præ-emptivt, kan dette give fejl hvis vi kun kigger på vm.selectedDate.
-    // Men for simpelthedens skyld antager vi at vm.selectedDate opdateres hurtigt, ELLER (bedre):
-    // Vi flytter logikken "getRenderedEntries" ind i et helper-mix, men for nu:
-    
     final vm = context.watch<CalendarViewModel>();
     
-    // Hack: Hvis denne widget ikke er for den valgte dag, så vis bare gitteret (optimering + undgå glitch)
-    // Eller bedre: Vi burde have en metode `getEntriesFor(date)` i VM.
-    // Da vi ikke har refaktureret VM til at give entries per dato-argument, bruger vi VM's selectedDate data.
-    // Dette betyder animationen kan se lidt sjov ud (indhold shifter mens man swiper). 
-    // Det er acceptabelt for Fase 2 start.
-    
-    final isSelectedDay = DateUtils.isSameDay(date, vm.selectedDate);
+    final isSelectedDay = DateUtils.isSameDay(widget.date, vm.selectedDate);
     
     return Column(
       children: [
@@ -151,19 +175,19 @@ class _DayView extends StatelessWidget {
           alignment: Alignment.center,
           child: Column(
             children: [
-              Text(DateFormat('EEEE').format(date).toUpperCase(), style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
+              Text(DateFormat('EEEE').format(widget.date).toUpperCase(), style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: isSelectedDay && DateUtils.isSameDay(date, DateTime.now()) 
+                decoration: isSelectedDay && DateUtils.isSameDay(widget.date, DateTime.now()) 
                   ? const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle) 
                   : null,
                 child: Text(
-                  "${date.day}", 
+                  "${widget.date.day}", 
                   style: TextStyle(
                     fontSize: 20, 
                     fontWeight: FontWeight.bold,
-                    color: (isSelectedDay && DateUtils.isSameDay(date, DateTime.now())) ? Colors.white : null
+                    color: (isSelectedDay && DateUtils.isSameDay(widget.date, DateTime.now())) ? Colors.white : null
                   )
                 ),
               ),
@@ -174,6 +198,7 @@ class _DayView extends StatelessWidget {
         // 2. Tidslinje Scroll
         Expanded(
           child: SingleChildScrollView(
+            controller: _scrollController, // Bruger vores controller med initial offset
             physics: const BouncingScrollPhysics(),
             child: SizedBox(
                height: 24 * 60.0, // 60px per time = 1440px total højde
@@ -207,7 +232,7 @@ class _DayView extends StatelessWidget {
                      }),
                      
                    // Current Time Indicator (Hvis i dag)
-                   if (DateUtils.isSameDay(date, DateTime.now()))
+                   if (DateUtils.isSameDay(widget.date, DateTime.now()))
                      const _CurrentTimeIndicator()
                  ],
                ),
