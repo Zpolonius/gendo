@@ -39,8 +39,19 @@ class TaskEntry extends CalendarEntry {
   @override String get title => task.title;
   
   // Tasks med tidspunkt får en default varighed på 1 time
-  @override DateTime get start => task.dueDate!;
-  @override DateTime get end => task.dueDate!.add(const Duration(hours: 1));
+  @override DateTime get start {
+    // Brugeren ønsker at tasks uden tidspunkt (00:00 eller sent om aftenen) skal stå kl 08:00
+    // Vi bredere logikken til at fange alt før kl 06 og alt efter kl 18 (antager det er "headless" tasks)
+    final h = task.dueDate!.hour;
+    if (h < 6 || h > 18) {
+       return DateTime(task.dueDate!.year, task.dueDate!.month, task.dueDate!.day, 8, 0);
+    }
+    return task.dueDate!;
+  }
+  
+  @override DateTime get end {
+    return start.add(const Duration(hours: 1));
+  }
   
   // Tasks bruger prioritets-farver eller tema-farve
   @override Color get color {
@@ -51,11 +62,9 @@ class TaskEntry extends CalendarEntry {
      }
   }
   
-  // Hvis task ikke har tidspunkt (kun dato), er den All Day
-  // Men her filtrerer vi kun tasks MED dueDate, så vi tjekker om den har tidskomponent
+  // Tasks skal nu vises i tidslinjen kl 08:00, ikke som All Day
   @override bool get isAllDay {
-     // En grov antagelse: Hvis tidspunkt er 00:00:00, er det nok en dato-only task
-     return task.dueDate!.hour == 0 && task.dueDate!.minute == 0;
+     return false; 
   }
   
   @override bool get isTask => true;
